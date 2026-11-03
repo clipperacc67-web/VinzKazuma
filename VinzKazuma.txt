@@ -1,5 +1,5 @@
 --[[
-    Vinz Kazuma - Delta (Fixed 360 Camera Flight Vector + Hitbox + ESP) - Part 1
+    Vinz Kazuma - Delta (Final Version: Flat Flight, Infinite ESP & Unlimited TP) - Part 1
 ]]
 
 print("[Vinz] Starting...")
@@ -65,32 +65,19 @@ UIS.JumpRequest:Connect(function()
     end
 end)
 
--- Fly Direction 360 Persis Mengikuti Arah Pandangan Kamera (Depan, Belakang, Atas, Bawah)
+-- Fly direction (Mode Flat Look Camera)
 local function flyDir()
     if not Hum then return Vector3.zero end
     local md = Hum.MoveDirection
     if md.Magnitude < 0.05 then return Vector3.zero end
-    
     local look = Cam.CFrame.LookVector
     local right = Cam.CFrame.RightVector
-    local up = Cam.CFrame.UpVector
-    
-    -- Konversi arah gerak humanoid terhadap orientasi kamera aktif
-    local moveVector = Vector3.zero
-    if md.Z < 0 then
-        moveVector = moveVector + look
-    elseif md.Z > 0 then
-        moveVector = moveVector - look
-    end
-    if md.X > 0 then
-        moveVector = moveVector + right
-    elseif md.X < 0 then
-        moveVector = moveVector - right
-    end
-    
-    if moveVector.Magnitude > 0.01 then
-        return moveVector.Unit
-    end
+    local flat = Vector3.new(look.X, 0, look.Z)
+    if flat.Magnitude > 0.01 then flat = flat.Unit else flat = Vector3.new(0,0,-1) end
+    local f = md:Dot(flat)
+    local r = md:Dot(right)
+    local d = look * f + right * r
+    if d.Magnitude > 0.01 then return d.Unit end
     return Vector3.zero
 end
 
@@ -120,7 +107,11 @@ function startFly()
             return
         end
         BV.Velocity = flyDir() * FlySpeed
-        BG.CFrame = Cam.CFrame
+        local look = Cam.CFrame.LookVector
+        local flat = Vector3.new(look.X, 0, look.Z)
+        if flat.Magnitude > 0.05 then
+            BG.CFrame = CFrame.new(Root.Position, Root.Position + flat)
+        end
     end)
 end
 
@@ -209,7 +200,6 @@ local function startHitbox()
                     hrp.Color = Color3.fromRGB(255, 255, 255)
                     hrp.Material = Enum.Material.Neon
                     hrp.CanCollide = false
-                    hrp.CastShadow = false
                 end
             end
         end
@@ -224,7 +214,6 @@ local function stopHitbox()
             if hrp then
                 hrp.Size = Vector3.new(2, 2, 1)
                 hrp.Transparency = 1
-                hrp.Material = Enum.Material.SmoothPlastic
                 hrp.CanCollide = false
             end
         end
@@ -233,7 +222,7 @@ end
 
 startHitbox()
 
--- ESP Global Tanpa Batas Jarak
+-- ESP Tanpa Batas (Global Infinite Range)
 local ESPHold = Instance.new("Folder")
 ESPHold.Name = "VinzESP"
 
@@ -259,7 +248,7 @@ local function addESP(plr)
     b.Size = UDim2.new(0, 130, 0, 26)
     b.StudsOffset = Vector3.new(0, 2.6, 0)
     b.AlwaysOnTop = true
-    b.MaxDistance = math.huge
+    b.MaxDistance = math.huge -- Tanpa batas jarak render engine
     b.Parent = ESPHold
 
     local t = Instance.new("TextLabel")
@@ -283,6 +272,7 @@ function startESP()
     local success, parent = pcall(function() return gethui() end)
     ESPHold.Parent = (success and parent) or CoreGui
     
+    -- Loop global untuk memastikan player sejauh apapun langsung terdeteksi
     RunService.RenderStepped:Connect(function()
         if not ESPOn then return end
         for _, p in pairs(Players:GetPlayers()) do
@@ -315,7 +305,7 @@ function stopESP()
     clearESP()
 end
 
--- Teleport Global
+-- Teleport Global Tanpa Batas Jarak
 local function tpTo(name)
     if not name or name == "" then return false end
     name = string.lower(name)

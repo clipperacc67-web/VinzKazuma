@@ -1,45 +1,41 @@
 --[[
-    Vin'z Kazuma
-    Universal Script | Android Optimized (PlayerGui)
-    Logo V → buka menu | X → tutup
+    Vin'z Kazuma - Compatible Version
 ]]
 
-local Players           = game:GetService("Players")
-local RunService        = game:GetService("RunService")
-local UserInputService  = game:GetService("UserInputService")
-local TweenService      = game:GetService("TweenService")
-local LocalPlayer       = Players.LocalPlayer
-local Camera            = workspace.CurrentCamera
-local Mouse             = LocalPlayer:GetMouse()
-local PlayerGui         = LocalPlayer:WaitForChild("PlayerGui")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local Config = {
-    WalkSpeed       = 50,
-    JumpPower       = 80,
-    FlyEnabled      = false,
-    FlySpeed        = 60,
-    InfiniteJump    = false,
-    Noclip          = false,
-    AimbotEnabled   = false,
-    AimbotFOV       = 120,
-    AimbotSmooth    = 0.25,
+    WalkSpeed = 50,
+    JumpPower = 80,
+    FlyEnabled = false,
+    FlySpeed = 60,
+    InfiniteJump = false,
+    Noclip = false,
+    AimbotEnabled = false,
+    AimbotFOV = 120,
+    AimbotSmooth = 0.25,
     AimbotTeamCheck = true,
-    AimbotPart      = "Head",
-    HitboxEnabled   = false,
-    HitboxSize      = 8,
-    ESPEnabled      = true,
-    ESPShowName     = true,
+    AimbotPart = "Head",
+    HitboxEnabled = false,
+    HitboxSize = 8,
+    ESPEnabled = true,
+    ESPShowName = true,
     ESPShowDistance = true,
-    ESPColor        = Color3.fromRGB(170, 80, 255),
-    ESPTeamCheck    = false,
+    ESPColor = Color3.fromRGB(170, 80, 255),
+    ESPTeamCheck = false,
 }
 
-local flying        = false
+local flying = false
 local bodyVel, bodyGyro
-local connections   = {}
-local espObjects    = {}
+local espObjects = {}
 local originalSizes = {}
-local menuOpen      = false
 
 local function getChar()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -73,7 +69,9 @@ local function applyMovement()
     if not hum then return end
     hum.WalkSpeed = Config.WalkSpeed
     hum.JumpPower = Config.JumpPower
-    pcall(function() hum.JumpHeight = Config.JumpPower / 2.5 end)
+    pcall(function()
+        hum.JumpHeight = Config.JumpPower / 2.5
+    end)
 end
 
 local function startFly()
@@ -102,12 +100,24 @@ local function updateFly()
     if not hrp or not bodyVel or not bodyGyro then return end
     local camCF = Camera.CFrame
     local move = Vector3.zero
-    if UserInputService:IsKeyDown(Enum.KeyCode.W) then move += camCF.LookVector end
-    if UserInputService:IsKeyDown(Enum.KeyCode.S) then move -= camCF.LookVector end
-    if UserInputService:IsKeyDown(Enum.KeyCode.A) then move -= camCF.RightVector end
-    if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += camCF.RightVector end
-    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.new(0,1,0) end
-    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move -= Vector3.new(0,1,0) end
+    if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+        move = move + camCF.LookVector
+    end
+    if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+        move = move - camCF.LookVector
+    end
+    if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+        move = move - camCF.RightVector
+    end
+    if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+        move = move + camCF.RightVector
+    end
+    if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+        move = move + Vector3.new(0, 1, 0)
+    end
+    if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+        move = move - Vector3.new(0, 1, 0)
+    end
     if move.Magnitude > 0 then
         bodyVel.Velocity = move.Unit * Config.FlySpeed
     else
@@ -135,7 +145,8 @@ local function onJumpRequest()
 end
 
 local function getClosestPlayer()
-    local closest, shortest = nil, Config.AimbotFOV
+    local closest = nil
+    local shortest = Config.AimbotFOV
     for _, player in ipairs(Players:GetPlayers()) do
         if player \~= LocalPlayer and isAlive(player) and isEnemy(player) then
             local char = player.Character
@@ -157,8 +168,7 @@ end
 
 local function updateAimbot()
     if not Config.AimbotEnabled then return end
-    if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
-       and not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+    if not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) and not UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
         return
     end
     local target = getClosestPlayer()
@@ -200,7 +210,9 @@ end
 local function clearESP(player)
     if espObjects[player] then
         for _, obj in pairs(espObjects[player]) do
-            if obj and obj.Parent then obj:Destroy() end
+            if obj and obj.Parent then
+                obj:Destroy()
+            end
         end
         espObjects[player] = nil
     end
@@ -229,7 +241,7 @@ local function createESP(player)
     billboard.Parent = char
 
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1,0,1,0)
+    label.Size = UDim2.new(1, 0, 1, 0)
     label.BackgroundTransparency = 1
     label.TextColor3 = Config.ESPColor
     label.TextStrokeTransparency = 0.4
@@ -237,7 +249,11 @@ local function createESP(player)
     label.TextSize = 14
     label.Parent = billboard
 
-    espObjects[player] = {Highlight = highlight, Billboard = billboard, Label = label}
+    espObjects[player] = {
+        Highlight = highlight,
+        Billboard = billboard,
+        Label = label
+    }
 end
 
 local function updateESP()
@@ -248,11 +264,17 @@ local function updateESP()
             local char = player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
             if hrp and data.Label then
-                local dist = (hrp.Position - (getHRP() and getHRP().Position or Vector3.zero)).Magnitude
+                local myHRP = getHRP()
+                local dist = (hrp.Position - (myHRP and myHRP.Position or Vector3.zero)).Magnitude
                 local text = ""
-                if Config.ESPShowName then text = player.Name end
+                if Config.ESPShowName then
+                    text = player.Name
+                end
                 if Config.ESPShowDistance then
-                    text = text .. (text \~= "" and "\n" or "") .. math.floor(dist) .. "m"
+                    if text \~= "" then
+                        text = text .. "\n"
+                    end
+                    text = text .. math.floor(dist) .. "m"
                 end
                 data.Label.Text = text
             end
@@ -260,21 +282,19 @@ local function updateESP()
     end
 end
 
-local ScreenGui, LogoButton, MenuFrame
-
 local function createUI()
     if PlayerGui:FindFirstChild("VinzKazumaUI") then
         PlayerGui.VinzKazumaUI:Destroy()
     end
 
-    ScreenGui = Instance.new("ScreenGui")
+    local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "VinzKazumaUI"
     ScreenGui.ResetOnSpawn = false
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.IgnoreGuiInset = true
     ScreenGui.Parent = PlayerGui
 
-    LogoButton = Instance.new("TextButton")
+    local LogoButton = Instance.new("TextButton")
     LogoButton.Name = "LogoV"
     LogoButton.Size = UDim2.new(0, 70, 0, 70)
     LogoButton.Position = UDim2.new(0, 25, 0.4, 0)
@@ -295,7 +315,9 @@ local function createUI()
     logoStroke.Thickness = 2.5
     logoStroke.Parent = LogoButton
 
-    local draggingLogo, dragStart, startPos
+    local draggingLogo = false
+    local dragStart, startPos
+
     LogoButton.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             draggingLogo = true
@@ -303,11 +325,13 @@ local function createUI()
             startPos = LogoButton.Position
         end
     end)
+
     LogoButton.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             draggingLogo = false
         end
     end)
+
     UserInputService.InputChanged:Connect(function(input)
         if draggingLogo and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local delta = input.Position - dragStart
@@ -315,7 +339,7 @@ local function createUI()
         end
     end)
 
-    MenuFrame = Instance.new("Frame")
+    local MenuFrame = Instance.new("Frame")
     MenuFrame.Name = "Menu"
     MenuFrame.Size = UDim2.new(0, 300, 0, 480)
     MenuFrame.Position = UDim2.new(0.5, -150, 0.5, -240)
@@ -356,10 +380,10 @@ local function createUI()
     CloseBtn.Size = UDim2.new(0, 40, 0, 40)
     CloseBtn.Position = UDim2.new(1, -44, 0, 4)
     CloseBtn.BackgroundTransparency = 1
-    CloseBtn.Text = "×"
+    CloseBtn.Text = "X"
     CloseBtn.TextColor3 = Color3.fromRGB(255, 90, 90)
     CloseBtn.Font = Enum.Font.GothamBold
-    CloseBtn.TextSize = 28
+    CloseBtn.TextSize = 22
     CloseBtn.Parent = Header
 
     local Scroll = Instance.new("ScrollingFrame")
@@ -368,7 +392,7 @@ local function createUI()
     Scroll.BackgroundTransparency = 1
     Scroll.ScrollBarThickness = 4
     Scroll.ScrollBarImageColor3 = Color3.fromRGB(140, 80, 255)
-    Scroll.CanvasSize = UDim2.new(0, 0, 0, 620)
+    Scroll.CanvasSize = UDim2.new(0, 0, 0, 650)
     Scroll.Parent = MenuFrame
 
     local y = 8
@@ -384,7 +408,7 @@ local function createUI()
         lbl.TextSize = 13
         lbl.TextXAlignment = Enum.TextXAlignment.Left
         lbl.Parent = Scroll
-        y += 26
+        y = y + 26
     end
 
     local function addToggle(name, default, callback)
@@ -411,7 +435,7 @@ local function createUI()
             btn.Text = "  " .. name .. (state and "   [ON]" or "   [OFF]")
             callback(state)
         end)
-        y += 46
+        y = y + 46
     end
 
     local function addSlider(name, min, max, default, callback)
@@ -465,7 +489,7 @@ local function createUI()
                 callback(value)
             end
         end)
-        y += 50
+        y = y + 50
     end
 
     addSection("MOVEMENT")
@@ -494,9 +518,13 @@ local function createUI()
     addToggle("ESP Player", Config.ESPEnabled, function(v)
         Config.ESPEnabled = v
         if v then
-            for _, p in ipairs(Players:GetPlayers()) do createESP(p) end
+            for _, p in ipairs(Players:GetPlayers()) do
+                createESP(p)
+            end
         else
-            for p in pairs(espObjects) do clearESP(p) end
+            for p in pairs(espObjects) do
+                clearESP(p)
+            end
         end
     end)
 
@@ -510,7 +538,9 @@ local function createUI()
     end)
     addSlider("Hitbox Size", 2, 30, Config.HitboxSize, function(v)
         Config.HitboxSize = v
-        if Config.HitboxEnabled then updateAllHitbox() end
+        if Config.HitboxEnabled then
+            updateAllHitbox()
+        end
     end)
     addSlider("Aimbot FOV", 40, 400, Config.AimbotFOV, function(v)
         Config.AimbotFOV = v
@@ -519,7 +549,6 @@ local function createUI()
     Scroll.CanvasSize = UDim2.new(0, 0, 0, y + 20)
 
     local function openMenu()
-        menuOpen = true
         MenuFrame.Visible = true
         LogoButton.Visible = false
         MenuFrame.Size = UDim2.new(0, 300, 0, 20)
@@ -529,7 +558,6 @@ local function createUI()
     end
 
     local function closeMenu()
-        menuOpen = false
         local tw = TweenService:Create(MenuFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quart), {
             Size = UDim2.new(0, 300, 0, 20)
         })
@@ -549,60 +577,51 @@ local function createUI()
     CloseBtn.MouseButton1Click:Connect(closeMenu)
 end
 
-local function init()
-    createUI()
-    applyMovement()
+-- Start
+createUI()
+applyMovement()
 
-    UserInputService.JumpRequest:Connect(onJumpRequest)
+UserInputService.JumpRequest:Connect(onJumpRequest)
 
-    table.insert(connections, RunService.RenderStepped:Connect(function()
-        updateFly()
-        updateAimbot()
-        if Config.Noclip then setNoclip(true) end
-    end))
-
-    table.insert(connections, RunService.Heartbeat:Connect(function()
-        applyMovement()
-        if Config.ESPEnabled then updateESP() end
-    end))
-
-    Players.PlayerAdded:Connect(function(player)
-        player.CharacterAdded:Connect(function()
-            task.wait(0.6)
-            if Config.ESPEnabled then createESP(player) end
-            if Config.HitboxEnabled then applyHitbox(player, true) end
-        end)
-    end)
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player \~= LocalPlayer then
-            if Config.ESPEnabled then createESP(player) end
-            player.CharacterAdded:Connect(function()
-                task.wait(0.6)
-                if Config.ESPEnabled then createESP(player) end
-            if Config.HitboxEnabled then applyHitbox(player, true) end
-        end)
-    end)
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player \~= LocalPlayer then
-            if Config.ESPEnabled then createESP(player) end
-            player.CharacterAdded:Connect(function()
-                task.wait(0.6)
-                if Config.ESPEnabled then createESP(player) end
-                if Config.HitboxEnabled then applyHitbox(player, true) end
-            end)
-        end
+RunService.RenderStepped:Connect(function()
+    updateFly()
+    updateAimbot()
+    if Config.Noclip then
+        setNoclip(true)
     end
+end)
 
-    LocalPlayer.CharacterAdded:Connect(function()
-        task.wait(0.9)
-        applyMovement()
-        if Config.FlyEnabled then startFly() end
-        if Config.Noclip then setNoclip(true) end
+RunService.Heartbeat:Connect(function()
+    applyMovement()
+    if Config.ESPEnabled then
+        updateESP()
+    end
+end)
+
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        wait(0.6)
+        if Config.ESPEnabled then createESP(player) end
+        if Config.HitboxEnabled then applyHitbox(player, true) end
     end)
+end)
 
-    print("[Vin'z Kazuma] Loaded — ketuk logo V")
+for _, player in ipairs(Players:GetPlayers()) do
+    if player \~= LocalPlayer then
+        if Config.ESPEnabled then createESP(player) end
+        player.CharacterAdded:Connect(function()
+            wait(0.6)
+            if Config.ESPEnabled then createESP(player) end
+            if Config.HitboxEnabled then applyHitbox(player, true) end
+        end)
+    end
 end
 
-init()
+LocalPlayer.CharacterAdded:Connect(function()
+    wait(0.9)
+    applyMovement()
+    if Config.FlyEnabled then startFly() end
+    if Config.Noclip then setNoclip(true) end
+end)
+
+print("[Vin'z Kazuma] Loaded")

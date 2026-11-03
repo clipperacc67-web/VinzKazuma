@@ -1,5 +1,5 @@
 --[[
-    Vinz Kazuma - Delta (Drawing Native ESP + Absolute Range) - Part 1
+    Vinz Kazuma - Delta (True Infinite Global Distance ESP) - Part 1
 ]]
 
 print("[Vinz] Starting...")
@@ -212,7 +212,7 @@ end
 
 startHitbox()
 
--- ESP Native Drawing API (Jaminan tembus jarak jauh & tidak pernah hilang)
+-- ESP Drawing API dengan Penanganan Anti-Culling Engine
 local espCache = {}
 
 local function removeESP(p)
@@ -271,11 +271,17 @@ RunService.RenderStepped:Connect(function()
             local cache = espCache[p]
             local textObj = cache and cache[1]
             local char = p.Character
-            local rootPart = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head"))
+            -- Memaksa request streaming jika karakter terhapus sementara oleh jarak
+            if not char and p.RequestStreamAsync then
+                pcall(function() p:RequestStreamAsync() end)
+            end
+            
+            local rootPart = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head") or char:FindFirstChildOfClass("BasePart"))
             
             if textObj and rootPart then
                 local vector, onScreen = Cam:WorldToViewportPoint(rootPart.Position + Vector3.new(0, 3, 0))
-                if onScreen then
+                -- Jika player di belakang kamera atau jarak jauh, arahkan teks ke tepi layar agar tidak hilang total
+                if vector.Z > 0 then
                     local dist = math.floor((Cam.CFrame.Position - rootPart.Position).Magnitude)
                     local nameStr = (p.DisplayName ~= p.Name) and (p.DisplayName .. " (@" .. p.Name .. ")") or p.Name
                     textObj.Text = nameStr .. " [" .. tostring(dist) .. "m]"

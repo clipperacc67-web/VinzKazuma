@@ -1,10 +1,9 @@
 --[[
-    Vinz Kazuma - Delta (Ultra Distance Screen-Space ESP Fixed) - Part 1
+    Vinz Kazuma - Delta (Drawing Native ESP + Absolute Range) - Part 1
 ]]
 
 print("[Vinz] Starting...")
 
--- Bersihkan UI lama jika ada
 pcall(function()
     local g = game:GetService("CoreGui"):FindFirstChild("VinzKazuma")
     if g then g:Destroy() end
@@ -20,7 +19,6 @@ local CoreGui = game:GetService("CoreGui")
 local LP = Players.LocalPlayer
 local Cam = workspace.CurrentCamera
 
--- State
 local InfJump = false
 local Flying = false
 local Noclip = false
@@ -36,10 +34,9 @@ local OldSpeed = 16
 local HitboxSize = 5
 local HitboxTransparency = 0.5
 
-local BV, BG, FlyConn, ClipConn, ImmConn, HitboxConn, ESPRenderConn
+local BV, BG, FlyConn, ClipConn, ImmConn, HitboxConn
 local Hum, Root, Char
 
--- Character
 local function getChar()
     Char = LP.Character
     if Char then
@@ -58,14 +55,12 @@ LP.CharacterAdded:Connect(function()
     if Immune then startImm() end
 end)
 
--- Infinite Jump
 UIS.JumpRequest:Connect(function()
     if InfJump and Hum then
         Hum:ChangeState(Enum.HumanoidStateType.Jumping)
     end
 end)
 
--- Fly direction (Flat Look Camera)
 local function flyDir()
     if not Hum then return Vector3.zero end
     local md = Hum.MoveDirection
@@ -81,7 +76,6 @@ local function flyDir()
     return Vector3.zero
 end
 
--- Fly Handler
 function startFly()
     getChar()
     if not Root or not Hum then return end
@@ -125,7 +119,6 @@ function stopFly()
     end
 end
 
--- Noclip
 function startClip()
     getChar()
     if not Char then return end
@@ -147,7 +140,6 @@ function stopClip()
     end
 end
 
--- Speed
 local function setSpeed()
     getChar()
     if Hum then
@@ -159,7 +151,6 @@ local function setSpeed()
     end
 end
 
--- Immune
 function startImm()
     getChar()
     if not Hum then return end
@@ -186,7 +177,6 @@ function stopImm()
     end
 end
 
--- Hitbox Expander
 local function startHitbox()
     HitboxConn = RunService.RenderStepped:Connect(function()
         if not HitboxOn then return end
@@ -222,74 +212,85 @@ end
 
 startHitbox()
 
--- ESP Screen-Space Absolute (Bypass Batas Render Engine Roblox)
-local ESPFolder = Instance.new("Folder")
-ESPFolder.Name = "VinzESP_Screen"
+-- ESP Native Drawing API (Jaminan tembus jarak jauh & tidak pernah hilang)
+local espCache = {}
 
-local function clearESP()
-    for _, v in pairs(ESPFolder:GetChildren()) do
-        v:Destroy()
+local function removeESP(p)
+    if espCache[p] then
+        for _, obj in pairs(espCache[p]) do
+            pcall(function() obj:Remove() end)
+        end
+        espCache[p] = nil
     end
 end
 
-local function createTextLabel(p)
-    local lbl = Instance.new("TextLabel")
-    lbl.Name = p.Name
-    lbl.Size = UDim2.new(0, 150, 0, 20)
-    lbl.BackgroundTransparency = 1
-    lbl.TextColor3 = Color3.fromRGB(0, 220, 255)
-    lbl.TextStrokeTransparency = 0.2
-    lbl.TextSize = 13
-    lbl.Font = Enum.Font.GothamBold
-    lbl.Visible = false
-    lbl.Parent = ESPFolder
-    return lbl
+local function addESP(p)
+    removeESP(p)
+    if p == LP then return end
+    
+    local text = Drawing.new("Text")
+    text.Visible = false
+    text.Center = true
+    text.Outline = true
+    text.OutlineColor = Color3.fromRGB(0, 0, 0)
+    text.Color = Color3.fromRGB(0, 220, 255)
+    text.Size = 13
+    text.Font = 2
+    
+    espCache[p] = {text}
 end
 
 function startESP()
-    clearESP()
-    local success, parent = pcall(function() return gethui() end)
-    ESPFolder.Parent = (success and parent) or CoreGui
-
-    ESPRenderConn = RunService.RenderStepped:Connect(function()
-        if not ESPOn then
-            clearESP()
-            return
-        end
-
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LP then
-                local lbl = ESPFolder:FindFirstChild(p.Name) or createTextLabel(p)
-                local char = p.Character
-                local head = char and (char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart"))
-                
-                if head then
-                    local worldPos = head.Position + Vector3.new(0, 2.5, 0)
-                    local screenPos, onScreen = Cam:WorldToViewportPoint(worldPos)
-                    
-                    if onScreen then
-                        lbl.Position = UDim2.new(0, screenPos.X - 75, 0, screenPos.Y)
-                        local dist = math.floor((Cam.CFrame.Position - head.Position).Magnitude)
-                        local nameStr = (p.DisplayName ~= p.Name) and (p.DisplayName .. " (@" .. p.Name .. ")") or p.Name
-                        lbl.Text = nameStr .. " [" .. tostring(dist) .. "m]"
-                        lbl.Visible = true
-                    else
-                        lbl.Visible = false
-                    end
-                else
-                    lbl.Visible = false
-                end
-            end
-        end
-    end)
+    for _, p in pairs(Players:GetPlayers()) do
+        addESP(p)
+    end
+    Players.PlayerAdded:Connect(addESP)
+    Players.PlayerRemoving:Connect(removeESP)
 end
 
 function stopESP()
-    if ESPRenderConn then ESPRenderConn:Disconnect() ESPRenderConn = nil end
-    clearESP()
+    for p, _ in pairs(espCache) do
+        removeESP(p)
+    end
 end
 
--- Teleport Global
+RunService.RenderStepped:Connect(function()
+    if not ESPOn then
+        for p, _ in pairs(espCache) do
+            removeESP(p)
+        end
+        return
+    end
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LP then
+            if not espCache[p] then
+                addESP(p)
+            end
+            
+            local cache = espCache[p]
+            local textObj = cache and cache[1]
+            local char = p.Character
+            local rootPart = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head"))
+            
+            if textObj and rootPart then
+                local vector, onScreen = Cam:WorldToViewportPoint(rootPart.Position + Vector3.new(0, 3, 0))
+                if onScreen then
+                    local dist = math.floor((Cam.CFrame.Position - rootPart.Position).Magnitude)
+                    local nameStr = (p.DisplayName ~= p.Name) and (p.DisplayName .. " (@" .. p.Name .. ")") or p.Name
+                    textObj.Text = nameStr .. " [" .. tostring(dist) .. "m]"
+                    textObj.Position = Vector2.new(vector.X, vector.Y)
+                    textObj.Visible = true
+                else
+                    textObj.Visible = false
+                end
+            elseif textObj then
+                textObj.Visible = false
+            end
+        end
+    end
+end)
+
 local function tpTo(name)
     if not name or name == "" then return false end
     name = string.lower(name)
@@ -338,7 +339,6 @@ end
 
 SG.Parent = guiParent
 
--- Logo
 local Logo = Instance.new("TextButton")
 Logo.Size = UDim2.new(0, 48, 0, 48)
 Logo.Position = UDim2.new(0.5, -24, 0, 12)
@@ -358,7 +358,6 @@ ls.Color = Color3.fromRGB(0, 180, 255)
 ls.Thickness = 2
 ls.Parent = Logo
 
--- Menu
 local Main = Instance.new("Frame")
 Main.Size = UDim2.new(0, 230, 0, 280)
 Main.Position = UDim2.new(0.5, -115, 0, 68)
@@ -370,7 +369,6 @@ local mc = Instance.new("UICorner")
 mc.CornerRadius = UDim.new(0, 9)
 mc.Parent = Main
 
--- Top
 local Top = Instance.new("Frame")
 Top.Size = UDim2.new(1, 0, 0, 36)
 Top.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
@@ -405,7 +403,6 @@ local xc = Instance.new("UICorner")
 xc.CornerRadius = UDim.new(0, 6)
 xc.Parent = XBtn
 
--- ScrollingFrame
 local Scroll = Instance.new("ScrollingFrame")
 Scroll.Size = UDim2.new(1, -8, 1, -44)
 Scroll.Position = UDim2.new(0, 4, 0, 40)
@@ -414,7 +411,6 @@ Scroll.CanvasSize = UDim2.new(0, 0, 0, 480)
 Scroll.ScrollBarThickness = 4
 Scroll.Parent = Main
 
--- Fungsi Drag
 local function makeDraggable(item, handle)
     handle = handle or item
     local dragging = false
@@ -469,7 +465,6 @@ XBtn.MouseButton1Click:Connect(function()
     Main.Visible = false
 end)
 
--- Buttons helper
 local function btn(txt, y)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(1, -12, 0, 30)

@@ -4,7 +4,6 @@
     Logo V → buka menu | X → tutup
 ]]
 
---// Services
 local Players           = game:GetService("Players")
 local RunService        = game:GetService("RunService")
 local UserInputService  = game:GetService("UserInputService")
@@ -14,7 +13,6 @@ local Camera            = workspace.CurrentCamera
 local Mouse             = LocalPlayer:GetMouse()
 local PlayerGui         = LocalPlayer:WaitForChild("PlayerGui")
 
---// Config
 local Config = {
     WalkSpeed       = 50,
     JumpPower       = 80,
@@ -36,7 +34,6 @@ local Config = {
     ESPTeamCheck    = false,
 }
 
---// State
 local flying        = false
 local bodyVel, bodyGyro
 local connections   = {}
@@ -44,9 +41,6 @@ local espObjects    = {}
 local originalSizes = {}
 local menuOpen      = false
 
--- =========================================================
--- UTILITIES
--- =========================================================
 local function getChar()
     return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 end
@@ -74,9 +68,6 @@ local function isEnemy(player)
     return player.Team \~= LocalPlayer.Team
 end
 
--- =========================================================
--- SPEED + JUMP
--- =========================================================
 local function applyMovement()
     local hum = getHumanoid()
     if not hum then return end
@@ -85,9 +76,6 @@ local function applyMovement()
     pcall(function() hum.JumpHeight = Config.JumpPower / 2.5 end)
 end
 
--- =========================================================
--- FLY
--- =========================================================
 local function startFly()
     local hrp = getHRP()
     if not hrp then return end
@@ -128,9 +116,6 @@ local function updateFly()
     bodyGyro.CFrame = camCF
 end
 
--- =========================================================
--- NOCLIP
--- =========================================================
 local function setNoclip(state)
     local char = getChar()
     if not char then return end
@@ -141,9 +126,6 @@ local function setNoclip(state)
     end
 end
 
--- =========================================================
--- INFINITE JUMP
--- =========================================================
 local function onJumpRequest()
     if not Config.InfiniteJump then return end
     local hum = getHumanoid()
@@ -152,9 +134,6 @@ local function onJumpRequest()
     end
 end
 
--- =========================================================
--- AIMBOT
--- =========================================================
 local function getClosestPlayer()
     local closest, shortest = nil, Config.AimbotFOV
     for _, player in ipairs(Players:GetPlayers()) do
@@ -188,9 +167,6 @@ local function updateAimbot()
     Camera.CFrame = Camera.CFrame:Lerp(targetCF, 1 - Config.AimbotSmooth)
 end
 
--- =========================================================
--- HITBOX
--- =========================================================
 local function applyHitbox(player, enable)
     local char = player.Character
     if not char then return end
@@ -221,9 +197,6 @@ local function updateAllHitbox()
     end
 end
 
--- =========================================================
--- ESP
--- =========================================================
 local function clearESP(player)
     if espObjects[player] then
         for _, obj in pairs(espObjects[player]) do
@@ -287,9 +260,6 @@ local function updateESP()
     end
 end
 
--- =========================================================
--- UI - Vin'z Kazuma (PlayerGui)
--- =========================================================
 local ScreenGui, LogoButton, MenuFrame
 
 local function createUI()
@@ -304,7 +274,6 @@ local function createUI()
     ScreenGui.IgnoreGuiInset = true
     ScreenGui.Parent = PlayerGui
 
-    -- ===== LOGO V =====
     LogoButton = Instance.new("TextButton")
     LogoButton.Name = "LogoV"
     LogoButton.Size = UDim2.new(0, 70, 0, 70)
@@ -326,7 +295,6 @@ local function createUI()
     logoStroke.Thickness = 2.5
     logoStroke.Parent = LogoButton
 
-    -- Drag logo
     local draggingLogo, dragStart, startPos
     LogoButton.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -347,7 +315,6 @@ local function createUI()
         end
     end)
 
-    -- ===== MENU =====
     MenuFrame = Instance.new("Frame")
     MenuFrame.Name = "Menu"
     MenuFrame.Size = UDim2.new(0, 300, 0, 480)
@@ -582,9 +549,6 @@ local function createUI()
     CloseBtn.MouseButton1Click:Connect(closeMenu)
 end
 
--- =========================================================
--- INIT
--- =========================================================
 local function init()
     createUI()
     applyMovement()
@@ -606,6 +570,16 @@ local function init()
         player.CharacterAdded:Connect(function()
             task.wait(0.6)
             if Config.ESPEnabled then createESP(player) end
+            if Config.HitboxEnabled then applyHitbox(player, true) end
+        end)
+    end)
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player \~= LocalPlayer then
+            if Config.ESPEnabled then createESP(player) end
+            player.CharacterAdded:Connect(function()
+                task.wait(0.6)
+                if Config.ESPEnabled then createESP(player) end
             if Config.HitboxEnabled then applyHitbox(player, true) end
         end)
     end)

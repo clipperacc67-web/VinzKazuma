@@ -1,5 +1,5 @@
 --[[
-    Vinz Kazuma - Delta (Final Version: Flat Flight, Infinite ESP & Unlimited TP) - Part 1
+    Vinz Kazuma - Delta (Ultra Distance Screen-Space ESP Fixed) - Part 1
 ]]
 
 print("[Vinz] Starting...")
@@ -36,7 +36,7 @@ local OldSpeed = 16
 local HitboxSize = 5
 local HitboxTransparency = 0.5
 
-local BV, BG, FlyConn, ClipConn, ImmConn, HitboxConn
+local BV, BG, FlyConn, ClipConn, ImmConn, HitboxConn, ESPRenderConn
 local Hum, Root, Char
 
 -- Character
@@ -65,7 +65,7 @@ UIS.JumpRequest:Connect(function()
     end
 end)
 
--- Fly direction (Mode Flat Look Camera)
+-- Fly direction (Flat Look Camera)
 local function flyDir()
     if not Hum then return Vector3.zero end
     local md = Hum.MoveDirection
@@ -222,90 +222,74 @@ end
 
 startHitbox()
 
--- ESP Tanpa Batas (Global Infinite Range)
-local ESPHold = Instance.new("Folder")
-ESPHold.Name = "VinzESP"
+-- ESP Screen-Space Absolute (Bypass Batas Render Engine Roblox)
+local ESPFolder = Instance.new("Folder")
+ESPFolder.Name = "VinzESP_Screen"
 
 local function clearESP()
-    for _, v in pairs(ESPHold:GetChildren()) do
+    for _, v in pairs(ESPFolder:GetChildren()) do
         v:Destroy()
     end
 end
 
-local function addESP(plr)
-    if plr == LP then return end
-    local c = plr.Character
-    if not c then return end
-    local h = c:FindFirstChild("Head") or c:FindFirstChild("HumanoidRootPart")
-    if not h then return end
-
-    local old = ESPHold:FindFirstChild(plr.Name)
-    if old then old:Destroy() end
-
-    local b = Instance.new("BillboardGui")
-    b.Name = plr.Name
-    b.Adornee = h
-    b.Size = UDim2.new(0, 130, 0, 26)
-    b.StudsOffset = Vector3.new(0, 2.6, 0)
-    b.AlwaysOnTop = true
-    b.MaxDistance = math.huge -- Tanpa batas jarak render engine
-    b.Parent = ESPHold
-
-    local t = Instance.new("TextLabel")
-    t.Size = UDim2.new(1, 0, 1, 0)
-    t.BackgroundTransparency = 1
-    t.TextColor3 = Color3.fromRGB(0, 220, 255)
-    t.TextStrokeTransparency = 0.3
-    t.TextSize = 13
-    t.Font = Enum.Font.GothamBold
-    t.Parent = b
-
-    if plr.DisplayName ~= plr.Name then
-        t.Text = plr.DisplayName .. " (@" .. plr.Name .. ")"
-    else
-        t.Text = plr.Name
-    end
+local function createTextLabel(p)
+    local lbl = Instance.new("TextLabel")
+    lbl.Name = p.Name
+    lbl.Size = UDim2.new(0, 150, 0, 20)
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = Color3.fromRGB(0, 220, 255)
+    lbl.TextStrokeTransparency = 0.2
+    lbl.TextSize = 13
+    lbl.Font = Enum.Font.GothamBold
+    lbl.Visible = false
+    lbl.Parent = ESPFolder
+    return lbl
 end
 
 function startESP()
     clearESP()
     local success, parent = pcall(function() return gethui() end)
-    ESPHold.Parent = (success and parent) or CoreGui
-    
-    -- Loop global untuk memastikan player sejauh apapun langsung terdeteksi
-    RunService.RenderStepped:Connect(function()
-        if not ESPOn then return end
+    ESPFolder.Parent = (success and parent) or CoreGui
+
+    ESPRenderConn = RunService.RenderStepped:Connect(function()
+        if not ESPOn then
+            clearESP()
+            return
+        end
+
         for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LP and p.Character and not ESPHold:FindFirstChild(p.Name) then
-                addESP(p)
+            if p ~= LP then
+                local lbl = ESPFolder:FindFirstChild(p.Name) or createTextLabel(p)
+                local char = p.Character
+                local head = char and (char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart"))
+                
+                if head then
+                    local worldPos = head.Position + Vector3.new(0, 2.5, 0)
+                    local screenPos, onScreen = Cam:WorldToViewportPoint(worldPos)
+                    
+                    if onScreen then
+                        lbl.Position = UDim2.new(0, screenPos.X - 75, 0, screenPos.Y)
+                        local dist = math.floor((Cam.CFrame.Position - head.Position).Magnitude)
+                        local nameStr = (p.DisplayName ~= p.Name) and (p.DisplayName .. " (@" .. p.Name .. ")") or p.Name
+                        lbl.Text = nameStr .. " [" .. tostring(dist) .. "m]"
+                        lbl.Visible = true
+                    else
+                        lbl.Visible = false
+                    end
+                else
+                    lbl.Visible = false
+                end
             end
         end
-    end)
-
-    for _, p in pairs(Players:GetPlayers()) do
-        addESP(p)
-        p.CharacterAdded:Connect(function()
-            if ESPOn then
-                task.wait(0.5)
-                addESP(p)
-            end
-        end)
-    end
-    Players.PlayerAdded:Connect(function(p)
-        p.CharacterAdded:Connect(function()
-            if ESPOn then
-                task.wait(0.5)
-                addESP(p)
-            end
-        end)
     end)
 end
 
 function stopESP()
+    if ESPRenderConn then ESPRenderConn:Disconnect() ESPRenderConn = nil end
     clearESP()
 end
 
--- Teleport Global Tanpa Batas Jarak
+-- Teleport Global
 local function tpTo(name)
     if not name or name == "" then return false end
     name = string.lower(name)

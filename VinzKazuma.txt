@@ -1,7 +1,7 @@
 --[[
     Vinz Kazuma Hub - Universal Mobile Edition (PART 1/3)
     UI Style: Modern Sidebar & Tabs
-    Includes: Core Engine, Metamethod Silent Aim Hook, UI Framework, & Navigation
+    Includes: Core Engine, Silent Aim Hook, UI Framework, & Topbar / Sidebar
 ]]
 
 local Players = game:GetService("Players")
@@ -11,6 +11,7 @@ local Lighting = game:GetService("Lighting")
 local TeleportService = game:GetService("TeleportService")
 local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
 
 local lp = Players.LocalPlayer
@@ -106,7 +107,7 @@ local function getRoot()
 end
 
 ---
--- SILENT AIM ENGINE (HOOKING METAMETHOD TANPA GERAK KAMERA)
+-- SILENT AIM ENGINE (METAMETHOD HOOK)
 ---
 local silentAimOn = false
 
@@ -144,11 +145,8 @@ pcall(function()
             if silentAimOn and not checkcaller() and t:IsA("Mouse") and (k == "Hit" or k == "Target") then
                 local target = getClosestEnemyTarget()
                 if target then
-                    if k == "Hit" then
-                        return target.CFrame
-                    elseif k == "Target" then
-                        return target
-                    end
+                    if k == "Hit" then return target.CFrame
+                    elseif k == "Target" then return target end
                 end
             end
             return oldIndex(t, k)
@@ -585,11 +583,64 @@ end
 ---
 local tabPlayer = createTab("Player")
 
-tabPlayer:AddToggle("Silent Auto Aim (Peluru)", false, function(on)
+-- 1. Auto Aim via Kamera (Aim Lock)
+local camAimOn = false
+local camAimConn = nil
+tabPlayer:AddToggle("Auto Aim (Via Kamera)", false, function(on)
+    camAimOn = on
+    if on then
+        camAimConn = RunService.RenderStepped:Connect(function()
+            local target = getClosestEnemyTarget()
+            local cam = workspace.CurrentCamera
+            if target and cam then
+                local targetCF = CFrame.new(cam.CFrame.Position, target.Position)
+                cam.CFrame = cam.CFrame:Lerp(targetCF, 0.25)
+            end
+        end)
+    else
+        if camAimConn then camAimConn:Disconnect(); camAimConn = nil end
+    end
+end)
+
+-- 2. Auto Aim via Peluru (Silent Aim)
+tabPlayer:AddToggle("Auto Aim (Via Peluru)", false, function(on)
     silentAimOn = on
 end)
 
--- Hitbox Expander & Box Visual (Mulai dari 0)
+-- 3. Fitur Immune / Kebal (Instant Refill Darah)
+local immuneOn = false
+local immuneConn = nil
+local function setupImmune()
+    local hum = getHum()
+    if hum then
+        if immuneConn then immuneConn:Disconnect() end
+        immuneConn = hum.HealthChanged:Connect(function(newHealth)
+            if immuneOn and newHealth < hum.MaxHealth then
+                hum.Health = hum.MaxHealth
+            end
+        end)
+        if immuneOn and hum.Health < hum.MaxHealth then
+            hum.Health = hum.MaxHealth
+        end
+    end
+end
+
+tabPlayer:AddToggle("Immune / Kebal (Instant HP)", false, function(on)
+    immuneOn = on
+    if on then setupImmune()
+    else
+        if immuneConn then immuneConn:Disconnect(); immuneConn = nil end
+    end
+end)
+
+lp.CharacterAdded:Connect(function()
+    if immuneOn then
+        task.wait(0.5)
+        setupImmune()
+    end
+end)
+
+-- 4. Hitbox Expander & Box Visual (Mulai dari 0)
 local hitboxOn = false
 local hitboxSize = 15
 local hitboxAlpha = 0
@@ -834,8 +885,8 @@ tabMovement:AddToggle("Noclip", false, function(on)
     end
 end)
 
--- Smooth Mobile Fly
-local flyOn, flySpeed, vertical = false, 50, 0
+-- Ultra Smooth Mobile Fly 3D (Mengikuti Arah Kamera 3D Penuh, Tanpa Tombol Naik/Turun)
+local flyOn, flySpeed = false, 50
 local flyBV, flyBG, flyConn
 local currentVel = Vector3.zero
 
@@ -875,71 +926,34 @@ local function startFly()
         local targetVelocity = Vector3.zero
 
         if md.Magnitude > 0 then
-            local look = cam.CFrame.LookVector
-            local flat = Vector3.new(look.X, 0, look.Z).Unit
-            local camRight = cam.CFrame.RightVector
-            local flatRight = Vector3.new(camRight.X, 0, camRight.Z).Unit
+            local flatLook = Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z)
+            local flatRight = Vector3.new(cam.CFrame.RightVector.X, 0, cam.CFrame.RightVector.Z)
+            
+            if flatLook.Magnitude > 0.01 and flatRight.Magnitude > 0.01 then
+                local forwardPush = md:Dot(flatLook.Unit)
+                local strafePush  = md:Dot(flatRight.Unit)
 
-            local forwardPush = md:Dot(flat)
-            local strafePush  = md:Dot(flatRight)
-
-            local moveVec = (cam.CFrame.LookVector * forwardPush) + (cam.CFrame.RightVector * strafePush)
-            targetVelocity = moveVec.Unit * flySpeed
+                -- Terbang 3D: Arah hadap kamera atas/bawah otomatis membawa terbang naik/turun
+                local moveVec = (cam.CFrame.LookVector * forwardPush) + (cam.CFrame.RightVector * strafePush)
+                if moveVec.Magnitude > 0.05 then
+                    targetVelocity = moveVec.Unit * flySpeed
+                end
+            end
         end
 
-        targetVelocity += Vector3.new(0, vertical * flySpeed, 0)
-        local smoothFactor = math.clamp(dt * 14, 0.05, 1)
+        local smoothFactor = math.clamp(dt * 12, 0.05, 1)
         currentVel = currentVel:Lerp(targetVelocity, smoothFactor)
         flyBV.Velocity = currentVel
 
-        local camLook = cam.CFrame.LookVector
-        local faceDir = Vector3.new(camLook.X, 0, camLook.Z)
+        local faceDir = cam.CFrame.LookVector
         if faceDir.Magnitude > 0.01 then
             flyBG.CFrame = flyBG.CFrame:Lerp(CFrame.new(hrp.Position, hrp.Position + faceDir), smoothFactor)
         end
     end)
 end
 
-local upDown = Instance.new("Frame")
-upDown.Size = UDim2.fromOffset(48, 106)
-upDown.Position = UDim2.new(1, -66, 0.5, -53)
-upDown.BackgroundTransparency = 1
-upDown.Visible = false
-upDown.Parent = gui
-
-local function holdBtn(txt, y, dir)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.fromOffset(46, 46)
-    b.Position = UDim2.fromOffset(0, y)
-    b.BackgroundColor3 = C_ACCENT
-    b.BackgroundTransparency = 0.3
-    b.Text = txt
-    b.TextColor3 = C_WHITE
-    b.Font = Enum.Font.GothamBold
-    b.TextSize = 20
-    b.Parent = upDown
-    addCorner(b, 23)
-
-    b.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
-            vertical = dir
-            local conn
-            conn = i.Changed:Connect(function()
-                if i.UserInputState == Enum.UserInputState.End then
-                    if vertical == dir then vertical = 0 end
-                    conn:Disconnect()
-                end
-            end)
-        end
-    end)
-end
-holdBtn("▲", 0, 1)
-holdBtn("▼", 54, -1)
-
-tabMovement:AddToggle("Smooth Fly", false, function(on)
+tabMovement:AddToggle("Ultra Smooth Fly (3D Cam)", false, function(on)
     flyOn = on
-    upDown.Visible = on
-    vertical = 0
     if on then startFly() else stopFly() end
 end)
 tabMovement:AddStepper("Fly Speed", 10, 250, 10, 50, function(v) flySpeed = v end)
@@ -974,13 +988,21 @@ tabVisuals:AddToggle("Freeze Camera (Statis)", false, function(on)
     end
 end)
 
--- Free Camera Mobile (Analog & Touch Geser Layar)
+-- Free Camera Mobile (Filter Touch Zona Analog agar Tidak Senggol)
 local freecamOn = false
 local freecamConn = nil
 local freecamTouchConn = nil
 local freecamPos = Vector3.zero
 local freecamYaw, freecamPitch = 0, 0
 local freecamSpeed = 45
+
+local function isInAnalogDeadzone(pos)
+    local cam = workspace.CurrentCamera
+    if not cam then return false end
+    local viewport = cam.ViewportSize
+    -- Zona analog mobile: sisi kiri bawah (lebar < 45% dan tinggi > 40%)
+    return pos.X < viewport.X * 0.45 and pos.Y > viewport.Y * 0.40
+end
 
 tabVisuals:AddToggle("Freecam (Analog & Touch)", false, function(on)
     freecamOn = on
@@ -998,16 +1020,19 @@ tabVisuals:AddToggle("Freecam (Analog & Touch)", false, function(on)
 
         cam.CameraType = Enum.CameraType.Scriptable
 
-        -- Usapan/sentuhan layar mengontrol rotasi sudut kamera
+        -- Usapan layar memutar sudut kamera (Sentuhan di zona analog diabaikan)
         freecamTouchConn = UIS.InputChanged:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
+                if input.UserInputType == Enum.UserInputType.Touch and isInAnalogDeadzone(input.Position) then
+                    return
+                end
                 local delta = input.Delta
-                freecamYaw = freecamYaw - math.rad(delta.X * 0.4)
-                freecamPitch = math.clamp(freecamPitch - math.rad(delta.Y * 0.4), math.rad(-89), math.rad(89))
+                freecamYaw = freecamYaw - math.rad(delta.X * 0.35)
+                freecamPitch = math.clamp(freecamPitch - math.rad(delta.Y * 0.35), math.rad(-89), math.rad(89))
             end
         end)
 
-        -- Analog joystick mengontrol pergerakan maju, mundur, dan samping
+        -- Analog bawaan menggerakkan posisi kamera
         freecamConn = RunService.RenderStepped:Connect(function(dt)
             if freecamOn then
                 local currentRot = CFrame.Angles(0, freecamYaw, 0) * CFrame.Angles(freecamPitch, 0, 0)
@@ -1027,6 +1052,50 @@ tabVisuals:AddToggle("Freecam (Analog & Touch)", false, function(on)
         if hrp then hrp.Anchored = false end
         cam.CameraType = Enum.CameraType.Custom
         if hum then cam.CameraSubject = hum end
+    end
+end)
+
+-- Grafik HD / RTX Lighting
+local hdInstances = {}
+tabVisuals:AddToggle("Grafik HD (RTX Lighting)", false, function(on)
+    if on then
+        local cc = Instance.new("ColorCorrectionEffect")
+        cc.Name = "VK_ColorCorrection"
+        cc.Brightness = 0.04
+        cc.Contrast = 0.25
+        cc.Saturation = 0.35
+        cc.Parent = Lighting
+
+        local bl = Instance.new("BloomEffect")
+        bl.Name = "VK_Bloom"
+        bl.Intensity = 0.65
+        bl.Size = 24
+        bl.Threshold = 0.8
+        bl.Parent = Lighting
+
+        local sun = Instance.new("SunRaysEffect")
+        sun.Name = "VK_SunRays"
+        sun.Intensity = 0.15
+        sun.Spread = 0.8
+        sun.Parent = Lighting
+
+        local dof = Instance.new("DepthOfFieldEffect")
+        dof.Name = "VK_DOF"
+        dof.FarIntensity = 0.15
+        dof.FocusDistance = 25
+        dof.InFocusRadius = 20
+        dof.NearIntensity = 0.1
+        dof.Parent = Lighting
+
+        pcall(function() Lighting.Technology = Enum.Technology.Future end)
+        Lighting.GlobalShadows = true
+
+        hdInstances = {cc, bl, sun, dof}
+    else
+        for _, inst in ipairs(hdInstances) do
+            if inst and inst.Parent then inst:Destroy() end
+        end
+        table.clear(hdInstances)
     end
 end)
 
@@ -1088,9 +1157,72 @@ tabVisuals:AddToggle("Click TP Tool", false, function(on)
 end)
 
 ---
--- TAB 4: MISC & SETTINGS
+-- TAB 4: MISC & SERVER
 ---
 local tabMisc = createTab("Misc")
+
+-- Server Hop Engine
+local function serverHop(lower)
+    local placeId = game.PlaceId
+    local currentJob = game.JobId
+    local url = string.format("https://games.roblox.com/v1/games/%s/servers/Public?sortOrder=%s&limit=100", tostring(placeId), lower and "Asc" or "Desc")
+    
+    local success, response = pcall(function()
+        return game:HttpGet(url)
+    end)
+
+    if success and response then
+        local data = HttpService:JSONDecode(response)
+        if data and data.data then
+            local validServers = {}
+            for _, s in ipairs(data.data) do
+                if s.id ~= currentJob and s.playing and s.playing < s.maxPlayers and s.playing > 0 then
+                    table.insert(validServers, s)
+                end
+            end
+
+            if #validServers > 0 then
+                if lower then
+                    table.sort(validServers, function(a, b) return a.playing < b.playing end)
+                    TeleportService:TeleportToPlaceInstance(placeId, validServers[1].id, lp)
+                else
+                    local picked = validServers[math.random(1, #validServers)]
+                    TeleportService:TeleportToPlaceInstance(placeId, picked.id, lp)
+                end
+                return
+            end
+        end
+    end
+    TeleportService:Teleport(placeId, lp)
+end
+
+tabMisc:AddButton("Change Server (Random)", function()
+    serverHop(false)
+end)
+
+tabMisc:AddButton("Change Lower Server (Sepi)", function()
+    serverHop(true)
+end)
+
+-- Anti AFK (Auto ON Sejak Awal)
+local afkConn = nil
+local function startAntiAFK()
+    if not afkConn then
+        afkConn = lp.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
+    end
+end
+startAntiAFK()
+
+tabMisc:AddToggle("Anti AFK (Auto On)", true, function(on)
+    if on then
+        startAntiAFK()
+    else
+        if afkConn then afkConn:Disconnect(); afkConn = nil end
+    end
+end)
 
 tabMisc:AddButton("FPS Booster (Reduce Lag)", function()
     pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
@@ -1103,17 +1235,6 @@ tabMisc:AddButton("FPS Booster (Reduce Lag)", function()
         elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
             v.Enabled = false
         end
-    end
-end)
-
-local afkConn
-tabMisc:AddToggle("Anti AFK (No Kick)", false, function(on)
-    if afkConn then afkConn:Disconnect(); afkConn = nil end
-    if on then
-        afkConn = lp.Idled:Connect(function()
-            VirtualUser:CaptureController()
-            VirtualUser:ClickButton2(Vector2.new())
-        end)
     end
 end)
 

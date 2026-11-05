@@ -1,723 +1,823 @@
 --[[
-    Vinz Kazuma - Delta (True Infinite Global Distance ESP) - Part 1
+    Vinz Kazuma Hub - Universal Script (Delta Executor / Android)
+    Build: Optimized Mobile Touch & Vector Smoothing
 ]]
-
-print("[Vinz] Starting...")
-
-pcall(function()
-    local g = game:GetService("CoreGui"):FindFirstChild("VinzKazuma")
-    if g then g:Destroy() end
-    local h = gethui and gethui():FindFirstChild("VinzKazuma")
-    if h then h:Destroy() end
-end)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local TeleportService = game:GetService("TeleportService")
+local VirtualUser = game:GetService("VirtualUser")
 local CoreGui = game:GetService("CoreGui")
 
-local LP = Players.LocalPlayer
-local Cam = workspace.CurrentCamera
+local lp = Players.LocalPlayer
 
-local InfJump = false
-local Flying = false
-local Noclip = false
-local SpeedOn = false
-local ESPOn = false
-local Immune = false
-local HitboxOn = false
-
-local FlySpeed = 50
-local RunSpeed = 50
-local OldSpeed = 16
-
-local HitboxSize = 5
-local HitboxTransparency = 0.5
-
-local BV, BG, FlyConn, ClipConn, ImmConn, HitboxConn
-local Hum, Root, Char
-
-local function getChar()
-    Char = LP.Character
-    if Char then
-        Hum = Char:FindFirstChildOfClass("Humanoid")
-        Root = Char:FindFirstChild("HumanoidRootPart")
-    end
-end
-getChar()
-
-LP.CharacterAdded:Connect(function()
-    task.wait(0.5)
-    getChar()
-    if Flying then startFly() end
-    if Noclip then startClip() end
-    if SpeedOn and Hum then Hum.WalkSpeed = RunSpeed end
-    if Immune then startImm() end
+-- Cleanup instance lama
+pcall(function()
+    local old = (gethui and gethui() or CoreGui):FindFirstChild("VinzKazuma")
+    if old then old:Destroy() end
+end)
+pcall(function()
+    local old = lp.PlayerGui:FindFirstChild("VinzKazuma")
+    if old then old:Destroy() end
 end)
 
-UIS.JumpRequest:Connect(function()
-    if InfJump and Hum then
-        Hum:ChangeState(Enum.HumanoidStateType.Jumping)
-    end
-end)
+---
+-- PALET WARNA
+---
+local BG      = Color3.fromRGB(18, 18, 24)
+local BAR     = Color3.fromRGB(28, 24, 44)
+local OFF     = Color3.fromRGB(38, 38, 50)
+local ACCENT  = Color3.fromRGB(130, 80, 255)
+local DANGER  = Color3.fromRGB(210, 50, 65)
+local ACTION  = Color3.fromRGB(55, 85, 150)
+local WHITE   = Color3.fromRGB(255, 255, 255)
 
-local function flyDir()
-    if not Hum then return Vector3.zero end
-    local md = Hum.MoveDirection
-    if md.Magnitude < 0.05 then return Vector3.zero end
-    local look = Cam.CFrame.LookVector
-    local right = Cam.CFrame.RightVector
-    local flat = Vector3.new(look.X, 0, look.Z)
-    if flat.Magnitude > 0.01 then flat = flat.Unit else flat = Vector3.new(0,0,-1) end
-    local f = md:Dot(flat)
-    local r = md:Dot(right)
-    local d = look * f + right * r
-    if d.Magnitude > 0.01 then return d.Unit end
-    return Vector3.zero
+---
+-- GUI ROOT
+---
+local gui = Instance.new("ScreenGui")
+gui.Name = "VinzKazuma"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.IgnoreGuiInset = true
+
+local ok = pcall(function() gui.Parent = (gethui and gethui()) or CoreGui end)
+if not ok or not gui.Parent then 
+    gui.Parent = lp:WaitForChild("PlayerGui") 
 end
 
-function startFly()
-    getChar()
-    if not Root or not Hum then return end
-    stopFly()
-
-    BV = Instance.new("BodyVelocity")
-    BV.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-    BV.Velocity = Vector3.zero
-    BV.Parent = Root
-
-    BG = Instance.new("BodyGyro")
-    BG.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
-    BG.P = 300000
-    BG.D = 500
-    BG.Parent = Root
-
-    Hum.PlatformStand = true
-    Hum.AutoRotate = false
-
-    FlyConn = RunService.Heartbeat:Connect(function()
-        if not Flying or not BV or not BV.Parent then
-            stopFly()
-            return
-        end
-        BV.Velocity = flyDir() * FlySpeed
-        local look = Cam.CFrame.LookVector
-        local flat = Vector3.new(look.X, 0, look.Z)
-        if flat.Magnitude > 0.05 then
-            BG.CFrame = CFrame.new(Root.Position, Root.Position + flat)
-        end
-    end)
+local function corner(obj, r)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, r)
+    c.Parent = obj
+    return c
 end
 
-function stopFly()
-    if FlyConn then FlyConn:Disconnect() FlyConn = nil end
-    if BV then pcall(function() BV:Destroy() end) BV = nil end
-    if BG then pcall(function() BG:Destroy() end) BG = nil end
-    if Hum then
-        Hum.PlatformStand = false
-        Hum.AutoRotate = true
-    end
-end
-
-function startClip()
-    getChar()
-    if not Char then return end
-    stopClip()
-    ClipConn = RunService.Stepped:Connect(function()
-        if not Noclip or not Char then stopClip() return end
-        for _, v in pairs(Char:GetDescendants()) do
-            if v:IsA("BasePart") then v.CanCollide = false end
-        end
-    end)
-end
-
-function stopClip()
-    if ClipConn then ClipConn:Disconnect() ClipConn = nil end
-    if Char then
-        for _, v in pairs(Char:GetDescendants()) do
-            if v:IsA("BasePart") then v.CanCollide = true end
-        end
-    end
-end
-
-local function setSpeed()
-    getChar()
-    if Hum then
-        if SpeedOn then
-            Hum.WalkSpeed = RunSpeed
-        else
-            Hum.WalkSpeed = OldSpeed
-        end
-    end
-end
-
-function startImm()
-    getChar()
-    if not Hum then return end
-    stopImm()
-    pcall(function()
-        Hum.MaxHealth = 9e9
-        Hum.Health = 9e9
-    end)
-    ImmConn = RunService.Heartbeat:Connect(function()
-        if not Immune or not Hum then stopImm() return end
-        if Hum.Health < 9e8 then
-            Hum.Health = 9e9
-        end
-    end)
-end
-
-function stopImm()
-    if ImmConn then ImmConn:Disconnect() ImmConn = nil end
-    if Hum then
-        pcall(function()
-            Hum.MaxHealth = 100
-            Hum.Health = 100
-        end)
-    end
-end
-
-local function startHitbox()
-    HitboxConn = RunService.RenderStepped:Connect(function()
-        if not HitboxOn then return end
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LP and p.Character then
-                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-                local hum = p.Character:FindFirstChildOfClass("Humanoid")
-                if hrp and hum and hum.Health > 0 then
-                    hrp.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
-                    hrp.Transparency = HitboxTransparency
-                    hrp.Color = Color3.fromRGB(255, 255, 255)
-                    hrp.Material = Enum.Material.Neon
-                    hrp.CanCollide = false
-                end
-            end
-        end
-    end)
-end
-
-local function stopHitbox()
-    if HitboxConn then HitboxConn:Disconnect() HitboxConn = nil end
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LP and p.Character then
-            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.Size = Vector3.new(2, 2, 1)
-                hrp.Transparency = 1
-                hrp.CanCollide = false
-            end
-        end
-    end
-end
-
-startHitbox()
-
--- ESP Drawing API dengan Penanganan Anti-Culling Engine
-local espCache = {}
-
-local function removeESP(p)
-    if espCache[p] then
-        for _, obj in pairs(espCache[p]) do
-            pcall(function() obj:Remove() end)
-        end
-        espCache[p] = nil
-    end
-end
-
-local function addESP(p)
-    removeESP(p)
-    if p == LP then return end
-    
-    local text = Drawing.new("Text")
-    text.Visible = false
-    text.Center = true
-    text.Outline = true
-    text.OutlineColor = Color3.fromRGB(0, 0, 0)
-    text.Color = Color3.fromRGB(0, 220, 255)
-    text.Size = 13
-    text.Font = 2
-    
-    espCache[p] = {text}
-end
-
-function startESP()
-    for _, p in pairs(Players:GetPlayers()) do
-        addESP(p)
-    end
-    Players.PlayerAdded:Connect(addESP)
-    Players.PlayerRemoving:Connect(removeESP)
-end
-
-function stopESP()
-    for p, _ in pairs(espCache) do
-        removeESP(p)
-    end
-end
-
-RunService.RenderStepped:Connect(function()
-    if not ESPOn then
-        for p, _ in pairs(espCache) do
-            removeESP(p)
-        end
-        return
-    end
-
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LP then
-            if not espCache[p] then
-                addESP(p)
-            end
-            
-            local cache = espCache[p]
-            local textObj = cache and cache[1]
-            local char = p.Character
-            -- Memaksa request streaming jika karakter terhapus sementara oleh jarak
-            if not char and p.RequestStreamAsync then
-                pcall(function() p:RequestStreamAsync() end)
-            end
-            
-            local rootPart = char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head") or char:FindFirstChildOfClass("BasePart"))
-            
-            if textObj and rootPart then
-                local vector, onScreen = Cam:WorldToViewportPoint(rootPart.Position + Vector3.new(0, 3, 0))
-                -- Jika player di belakang kamera atau jarak jauh, arahkan teks ke tepi layar agar tidak hilang total
-                if vector.Z > 0 then
-                    local dist = math.floor((Cam.CFrame.Position - rootPart.Position).Magnitude)
-                    local nameStr = (p.DisplayName ~= p.Name) and (p.DisplayName .. " (@" .. p.Name .. ")") or p.Name
-                    textObj.Text = nameStr .. " [" .. tostring(dist) .. "m]"
-                    textObj.Position = Vector2.new(vector.X, vector.Y)
-                    textObj.Visible = true
-                else
-                    textObj.Visible = false
-                end
-            elseif textObj then
-                textObj.Visible = false
-            end
-        end
-    end
-end)
-
-local function tpTo(name)
-    if not name or name == "" then return false end
-    name = string.lower(name)
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LP then
-            if string.find(string.lower(p.Name), name, 1, true) or string.find(string.lower(p.DisplayName), name, 1, true) then
-                local tr = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
-                getChar()
-                if tr and Root then
-                    Root.CFrame = tr.CFrame + Vector3.new(0, 4, 0)
-                    return true, p.Name
-                end
-            end
-        end
-    end
-    return false
-end
--- ================= UI (Compact & Scrollable) =================
-local SG = Instance.new("ScreenGui")
-SG.Name = "VinzKazuma"
-SG.ResetOnSpawn = false
-SG.IgnoreGuiInset = true
-SG.DisplayOrder = 999
-SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-local success, guiParent = pcall(function()
-    return gethui()
-end)
-
-if not success or not guiParent then
-    pcall(function()
-        guiParent = CoreGui
-    end)
-end
-
-if not guiParent then
-    pcall(function()
-        guiParent = LP:WaitForChild("PlayerGui", 2)
-    end)
-end
-
-if not guiParent then
-    warn("[Vinz] UI parent failed completely")
-    return
-end
-
-SG.Parent = guiParent
-
-local Logo = Instance.new("TextButton")
-Logo.Size = UDim2.new(0, 48, 0, 48)
-Logo.Position = UDim2.new(0.5, -24, 0, 12)
-Logo.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-Logo.Text = "V"
-Logo.TextColor3 = Color3.fromRGB(0, 210, 255)
-Logo.TextSize = 24
-Logo.Font = Enum.Font.GothamBold
-Logo.Parent = SG
-
-local lc = Instance.new("UICorner")
-lc.CornerRadius = UDim.new(0, 10)
-lc.Parent = Logo
-
-local ls = Instance.new("UIStroke")
-ls.Color = Color3.fromRGB(0, 180, 255)
-ls.Thickness = 2
-ls.Parent = Logo
-
-local Main = Instance.new("Frame")
-Main.Size = UDim2.new(0, 230, 0, 280)
-Main.Position = UDim2.new(0.5, -115, 0, 68)
-Main.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
-Main.Visible = false
-Main.Parent = SG
-
-local mc = Instance.new("UICorner")
-mc.CornerRadius = UDim.new(0, 9)
-mc.Parent = Main
-
-local Top = Instance.new("Frame")
-Top.Size = UDim2.new(1, 0, 0, 36)
-Top.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
-Top.Parent = Main
-
-local tc = Instance.new("UICorner")
-tc.CornerRadius = UDim.new(0, 9)
-tc.Parent = Top
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, -40, 1, 0)
-Title.Position = UDim2.new(0, 10, 0, 0)
-Title.BackgroundTransparency = 1
-Title.Text = "Vinz Kazuma"
-Title.TextColor3 = Color3.fromRGB(230, 230, 240)
-Title.TextSize = 14
-Title.Font = Enum.Font.GothamSemibold
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.Parent = Top
-
-local XBtn = Instance.new("TextButton")
-XBtn.Size = UDim2.new(0, 28, 0, 28)
-XBtn.Position = UDim2.new(1, -32, 0, 4)
-XBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-XBtn.Text = "×"
-XBtn.TextColor3 = Color3.fromRGB(230, 230, 240)
-XBtn.TextSize = 18
-XBtn.Font = Enum.Font.GothamBold
-XBtn.Parent = Top
-
-local xc = Instance.new("UICorner")
-xc.CornerRadius = UDim.new(0, 6)
-xc.Parent = XBtn
-
-local Scroll = Instance.new("ScrollingFrame")
-Scroll.Size = UDim2.new(1, -8, 1, -44)
-Scroll.Position = UDim2.new(0, 4, 0, 40)
-Scroll.BackgroundTransparency = 1
-Scroll.CanvasSize = UDim2.new(0, 0, 0, 480)
-Scroll.ScrollBarThickness = 4
-Scroll.Parent = Main
-
-local function makeDraggable(item, handle)
-    handle = handle or item
-    local dragging = false
-    local dragInput, dragStart, startPos
-    local moved = false
-
-    handle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = item.Position
-            moved = false
-            
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
+local function makeDraggable(handle, target, onClick)
+    local dragging, moved, startInput, startPos = false, false, nil, nil
+    handle.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging, moved = true, false
+            startInput = i.Position
+            startPos = target.Position
+            i.Changed:Connect(function()
+                if i.UserInputState == Enum.UserInputState.End then
                     dragging = false
+                    if not moved and onClick then onClick() end
                 end
             end)
         end
     end)
-
-    UIS.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            if delta.Magnitude > 5 then
-                moved = true
+    UIS.InputChanged:Connect(function(i)
+        if dragging and (i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseMovement) then
+            local d = i.Position - startInput
+            if d.Magnitude > 6 then moved = true end
+            if moved then
+                target.Position = UDim2.new(
+                    startPos.X.Scale, startPos.X.Offset + d.X,
+                    startPos.Y.Scale, startPos.Y.Offset + d.Y
+                )
             end
-            item.Position = UDim2.new(
-                startPos.X.Scale, 
-                startPos.X.Offset + delta.X, 
-                startPos.Y.Scale, 
-                startPos.Y.Offset + delta.Y
-            )
         end
     end)
-    
-    return function()
-        return moved
-    end
 end
 
-makeDraggable(Main, Top)
-local logoMoved = makeDraggable(Logo, Logo)
+---
+-- LOGO FLOATING "V"
+---
+local logo = Instance.new("TextButton")
+logo.Name = "Logo"
+logo.Size = UDim2.fromOffset(46, 46)
+logo.Position = UDim2.new(0, 16, 0.35, 0)
+logo.BackgroundColor3 = BG
+logo.Text = "V"
+logo.TextColor3 = ACCENT
+logo.Font = Enum.Font.GothamBlack
+logo.TextSize = 26
+logo.AutoButtonColor = false
+logo.Parent = gui
+corner(logo, 23)
 
-Logo.MouseButton1Click:Connect(function()
-    if not logoMoved() then
-        Main.Visible = not Main.Visible
+local ls = Instance.new("UIStroke")
+ls.Color = ACCENT
+ls.Thickness = 2
+ls.Parent = logo
+
+---
+-- MAIN MENU
+---
+local menu = Instance.new("Frame")
+menu.Name = "Menu"
+menu.Size = UDim2.fromOffset(250, 310)
+menu.Position = UDim2.new(0.5, -125, 0.5, -155)
+menu.BackgroundColor3 = BG
+menu.Visible = false
+menu.Active = true
+menu.ClipsDescendants = true
+menu.Parent = gui
+corner(menu, 12)
+
+local ms = Instance.new("UIStroke")
+ms.Color = ACCENT
+ms.Thickness = 1.5
+ms.Parent = menu
+
+local bar = Instance.new("Frame")
+bar.Size = UDim2.new(1, 0, 0, 32)
+bar.BackgroundColor3 = BAR
+bar.Parent = menu
+corner(bar, 12)
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -45, 1, 0)
+title.Position = UDim2.fromOffset(12, 0)
+title.BackgroundTransparency = 1
+title.Text = "Vinz Kazuma Hub"
+title.TextColor3 = WHITE
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = bar
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.fromOffset(24, 22)
+closeBtn.Position = UDim2.new(1, -30, 0.5, -11)
+closeBtn.BackgroundColor3 = DANGER
+closeBtn.Text = "X"
+closeBtn.TextColor3 = WHITE
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 13
+closeBtn.Parent = bar
+corner(closeBtn, 6)
+closeBtn.Activated:Connect(function() menu.Visible = false end)
+
+makeDraggable(bar, menu)
+makeDraggable(logo, logo, function() menu.Visible = not menu.Visible end)
+
+local body = Instance.new("Frame")
+body.Size = UDim2.new(1, -16, 1, -40)
+body.Position = UDim2.fromOffset(8, 36)
+body.BackgroundTransparency = 1
+body.Parent = menu
+
+---
+-- STEPPER ENGINE
+---
+local stepScroll = Instance.new("ScrollingFrame")
+stepScroll.Size = UDim2.new(1, 0, 0, 115)
+stepScroll.BackgroundTransparency = 1
+stepScroll.BorderSizePixel = 0
+stepScroll.ScrollBarThickness = 2
+stepScroll.ScrollBarImageColor3 = ACCENT
+stepScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+stepScroll.CanvasSize = UDim2.new()
+stepScroll.Parent = body
+
+local sl = Instance.new("UIListLayout")
+sl.Padding = UDim.new(0, 4)
+sl.SortOrder = Enum.SortOrder.LayoutOrder
+sl.Parent = stepScroll
+
+local stepOrder = 0
+local function makeStepper(name, min, max, step, default, onChange)
+    stepOrder += 1
+    local value = default
+    local row = Instance.new("Frame")
+    row.LayoutOrder = stepOrder
+    row.Size = UDim2.new(1, -4, 0, 26)
+    row.BackgroundColor3 = OFF
+    row.Parent = stepScroll
+    corner(row, 6)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.55, 0, 1, 0)
+    lbl.Position = UDim2.fromOffset(8, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = WHITE
+    lbl.Font = Enum.Font.GothamMedium
+    lbl.TextSize = 11
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = row
+
+    local function refresh()
+        lbl.Text = string.format("%s: %s", name, tostring(value))
+        onChange(value)
     end
+
+    local function btn(txt, xScale)
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(0.18, 0, 0, 20)
+        b.Position = UDim2.new(xScale, 0, 0.5, -10)
+        b.BackgroundColor3 = ACCENT
+        b.Text = txt
+        b.TextColor3 = WHITE
+        b.Font = Enum.Font.GothamBold
+        b.TextSize = 13
+        b.Parent = row
+        corner(b, 5)
+        return b
+    end
+
+    btn("-", 0.60).Activated:Connect(function()
+        value = math.clamp(value - step, min, max)
+        refresh()
+    end)
+    btn("+", 0.80).Activated:Connect(function()
+        value = math.clamp(value + step, min, max)
+        refresh()
+    end)
+    refresh()
+end
+
+---
+-- VALUE REGISTERS
+---
+local speedVal   = 16
+local flySpeed   = 50
+local hitboxSize = 15
+local hitboxAlpha = 5 -- Skala 0 - 10 (0 = Invisible / Transparan total)
+local targetFov  = 70
+
+makeStepper("Speed", 16, 250, 8, 16, function(v) speedVal = v end)
+makeStepper("Fly Speed", 10, 250, 10, 50, function(v) flySpeed = v end)
+makeStepper("Hitbox Size", 2, 60, 2, 15, function(v) hitboxSize = v end)
+makeStepper("Hitbox Vis", 0, 10, 1, 5, function(v) hitboxAlpha = v end)
+makeStepper("Field of View", 60, 120, 5, 70, function(v)
+    targetFov = v
+    local cam = workspace.CurrentCamera
+    if cam then cam.FieldOfView = v end
 end)
 
-XBtn.MouseButton1Click:Connect(function()
-    Main.Visible = false
-end)
+---
+-- BUTTON GRID (2 Kolom)
+---
+local scroll = Instance.new("ScrollingFrame")
+scroll.Size = UDim2.new(1, 0, 1, -122)
+scroll.Position = UDim2.fromOffset(0, 120)
+scroll.BackgroundTransparency = 1
+scroll.BorderSizePixel = 0
+scroll.ScrollBarThickness = 3
+scroll.ScrollBarImageColor3 = ACCENT
+scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+scroll.CanvasSize = UDim2.new()
+scroll.Parent = body
 
-local function btn(txt, y)
+local grid = Instance.new("UIGridLayout")
+grid.CellSize = UDim2.new(0.5, -4, 0, 28)
+grid.CellPadding = UDim2.fromOffset(6, 6)
+grid.SortOrder = Enum.SortOrder.LayoutOrder
+grid.Parent = scroll
+
+local order = 0
+local function newButton(text, color)
+    order += 1
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1, -12, 0, 30)
-    b.Position = UDim2.new(0, 6, 0, y)
-    b.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
-    b.Text = txt
-    b.TextColor3 = Color3.fromRGB(200, 200, 210)
-    b.TextSize = 12
-    b.Font = Enum.Font.Gotham
-    b.Parent = Scroll
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, 6)
-    c.Parent = b
+    b.LayoutOrder = order
+    b.BackgroundColor3 = color
+    b.Text = text
+    b.TextColor3 = WHITE
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 11
+    b.AutoButtonColor = true
+    b.Parent = scroll
+    corner(b, 6)
     return b
 end
 
-local B1 = btn("Infinite Jump  [OFF]", 6)
-local B2 = btn("Fly  [OFF]", 40)
-local B3 = btn("Noclip  [OFF]", 74)
-local B4 = btn("Speed Boost  [OFF]", 108)
-local B5 = btn("Immune  [OFF]", 142)
-local B6 = btn("ESP Player  [OFF]", 176)
-local B7 = btn("Hitbox Expander  [OFF]", 210)
-
-local function label(t, y)
-    local l = Instance.new("TextLabel")
-    l.Size = UDim2.new(0.4, 0, 0, 26)
-    l.Position = UDim2.new(0, 8, 0, y)
-    l.BackgroundTransparency = 1
-    l.Text = t
-    l.TextColor3 = Color3.fromRGB(160, 160, 170)
-    l.TextSize = 11
-    l.Font = Enum.Font.Gotham
-    l.TextXAlignment = Enum.TextXAlignment.Left
-    l.Parent = Scroll
+local function addToggle(text, callback)
+    local b = newButton(text, OFF)
+    local on = false
+    b.Activated:Connect(function()
+        on = not on
+        b.BackgroundColor3 = on and ACCENT or OFF
+        local s, e = pcall(callback, on)
+        if not s then warn("[Vinz Kazuma] " .. tostring(e)) end
+    end)
 end
 
-label("Fly Speed", 248)
-local FS = Instance.new("TextBox")
-FS.Size = UDim2.new(0.48, 0, 0, 26)
-FS.Position = UDim2.new(0.45, 0, 0, 248)
-FS.BackgroundColor3 = Color3.fromRGB(26, 26, 32)
-FS.Text = "50"
-FS.TextColor3 = Color3.fromRGB(220, 220, 230)
-FS.TextSize = 12
-FS.Font = Enum.Font.Gotham
-FS.Parent = Scroll
-local fsc = Instance.new("UICorner")
-fsc.CornerRadius = UDim.new(0, 5)
-fsc.Parent = FS
+local function addAction(text, callback)
+    local b = newButton(text, ACTION)
+    b.Activated:Connect(function()
+        local s, e = pcall(callback)
+        if not s then warn("[Vinz Kazuma] " .. tostring(e)) end
+    end)
+end
 
-label("Run Speed", 280)
-local RS = Instance.new("TextBox")
-RS.Size = UDim2.new(0.48, 0, 0, 26)
-RS.Position = UDim2.new(0.45, 0, 0, 280)
-RS.BackgroundColor3 = Color3.fromRGB(26, 26, 32)
-RS.Text = "50"
-RS.TextColor3 = Color3.fromRGB(220, 220, 230)
-RS.TextSize = 12
-RS.Font = Enum.Font.Gotham
-RS.Parent = Scroll
-local rsc = Instance.new("UICorner")
-rsc.CornerRadius = UDim.new(0, 5)
-rsc.Parent = RS
+---
+-- CHARACTER HELPERS
+---
+local function getHum()
+    local c = lp.Character
+    return c and c:FindFirstChildOfClass("Humanoid")
+end
 
-label("Hitbox Size", 312)
-local HSBox = Instance.new("TextBox")
-HSBox.Size = UDim2.new(0.48, 0, 0, 26)
-HSBox.Position = UDim2.new(0.45, 0, 0, 312)
-HSBox.BackgroundColor3 = Color3.fromRGB(26, 26, 32)
-HSBox.Text = "5"
-HSBox.TextColor3 = Color3.fromRGB(220, 220, 230)
-HSBox.TextSize = 12
-HSBox.Font = Enum.Font.Gotham
-HSBox.Parent = Scroll
-local hsc = Instance.new("UICorner")
-hsc.CornerRadius = UDim.new(0, 5)
-hsc.Parent = HSBox
+local function getRoot()
+    local c = lp.Character
+    return c and c:FindFirstChild("HumanoidRootPart")
+end
 
-label("Invisible Hitbox", 346)
-local SliderBg = Instance.new("Frame")
-SliderBg.Size = UDim2.new(0.48, 0, 0, 20)
-SliderBg.Position = UDim2.new(0.45, 0, 0, 349)
-SliderBg.BackgroundColor3 = Color3.fromRGB(26, 26, 32)
-SliderBg.Parent = Scroll
-local sbgc = Instance.new("UICorner")
-sbgc.CornerRadius = UDim.new(0, 5)
-sbgc.Parent = SliderBg
+---
+-- SPEED & HIGH JUMP
+---
+local speedOn, jumpOn = false, false
 
-local SliderFill = Instance.new("Frame")
-SliderFill.Size = UDim2.new(0.5, 0, 1, 0)
-SliderFill.BackgroundColor3 = Color3.fromRGB(0, 140, 180)
-SliderFill.Parent = SliderBg
-local sfc = Instance.new("UICorner")
-sfc.CornerRadius = UDim.new(0, 5)
-sfc.Parent = SliderFill
-
-local SliderBtn = Instance.new("TextButton")
-SliderBtn.Size = UDim2.new(1, 0, 1, 0)
-SliderBtn.BackgroundTransparency = 1
-SliderBtn.Text = "Geser"
-SliderBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-SliderBtn.TextSize = 10
-SliderBtn.Font = Enum.Font.GothamBold
-SliderBtn.Parent = SliderBg
-
-local draggingSlider = false
-SliderBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        draggingSlider = true
+RunService.Heartbeat:Connect(function()
+    local h = getHum()
+    if not h then return end
+    if speedOn then h.WalkSpeed = speedVal end
+    if jumpOn then
+        h.UseJumpPower = true
+        h.JumpPower = 100
     end
 end)
 
-UIS.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        draggingSlider = false
+addToggle("Speed", function(on)
+    speedOn = on
+    if not on then
+        local h = getHum()
+        if h then h.WalkSpeed = 16 end
     end
 end)
 
-UIS.InputChanged:Connect(function(input)
-    if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local pos = input.Position.X
-        local absPos = SliderBg.AbsolutePosition.X
-        local absSize = SliderBg.AbsoluteSize.X
-        local relX = math.clamp((pos - absPos) / absSize, 0, 1)
-        
-        SliderFill.Size = UDim2.new(relX, 0, 1, 0)
-        HitboxTransparency = relX
-        SliderBtn.Text = string.format("%.1f", relX)
+addToggle("High Jump", function(on)
+    jumpOn = on
+    if not on then
+        local h = getHum()
+        if h then h.UseJumpPower = true; h.JumpPower = 50 end
     end
 end)
 
-label("Teleport", 382)
-local TB = Instance.new("TextBox")
-TB.Size = UDim2.new(0.48, 0, 0, 26)
-TB.Position = UDim2.new(0.45, 0, 0, 382)
-TB.BackgroundColor3 = Color3.fromRGB(26, 26, 32)
-TB.PlaceholderText = "name"
-TB.Text = ""
-TB.TextColor3 = Color3.fromRGB(220, 220, 230)
-TB.TextSize = 12
-TB.Font = Enum.Font.Gotham
-TB.Parent = Scroll
-local lrc = Instance.new("UICorner")
-lrc.CornerRadius = UDim.new(0, 5)
-lrc.Parent = TB
+---
+-- INFINITE JUMP
+---
+local infJump = false
+UIS.JumpRequest:Connect(function()
+    if infJump then
+        local h = getHum()
+        if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
+    end
+end)
+addToggle("Inf Jump", function(on) infJump = on end)
 
-local TP = btn("Teleport to Player", 416)
-TP.BackgroundColor3 = Color3.fromRGB(0, 100, 140)
-
-local Stat = Instance.new("TextLabel")
-Stat.Size = UDim2.new(1, -12, 0, 18)
-Stat.Position = UDim2.new(0, 6, 0, 452)
-Stat.BackgroundTransparency = 1
-Stat.Text = ""
-Stat.TextColor3 = Color3.fromRGB(100, 200, 150)
-Stat.TextSize = 11
-Stat.Font = Enum.Font.Gotham
-Stat.Parent = Scroll
-
-local function setT(b, on, onT, offT)
+---
+-- NOCLIP
+---
+local noclipConn
+addToggle("Noclip", function(on)
+    if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
     if on then
-        b.BackgroundColor3 = Color3.fromRGB(0, 140, 180)
-        b.Text = onT
-        b.TextColor3 = Color3.fromRGB(255, 255, 255)
-    else
-        b.BackgroundColor3 = Color3.fromRGB(32, 32, 40)
-        b.Text = offT
-        b.TextColor3 = Color3.fromRGB(200, 200, 210)
+        noclipConn = RunService.Stepped:Connect(function()
+            local c = lp.Character
+            if c then
+                for _, p in ipairs(c:GetDescendants()) do
+                    if p:IsA("BasePart") and p.CanCollide then
+                        p.CanCollide = false
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+---
+-- SMOOTH FLY ENGINE (Interpolasi Halus untuk Android/Touch)
+---
+local flyOn, vertical = false, 0
+local flyBV, flyBG, flyConn
+local currentVel = Vector3.zero
+
+local function stopFly()
+    if flyConn then flyConn:Disconnect(); flyConn = nil end
+    if flyBV then flyBV:Destroy(); flyBV = nil end
+    if flyBG then flyBG:Destroy(); flyBG = nil end
+    currentVel = Vector3.zero
+    local h = getHum()
+    if h then h.AutoRotate = true end
+end
+
+local function startFly()
+    stopFly()
+    local hrp, hum = getRoot(), getHum()
+    if not hrp or not hum then return end
+
+    flyBV = Instance.new("BodyVelocity")
+    flyBV.MaxForce = Vector3.new(1e8, 1e8, 1e8)
+    flyBV.Velocity = Vector3.zero
+    flyBV.Parent = hrp
+
+    flyBG = Instance.new("BodyGyro")
+    flyBG.MaxTorque = Vector3.new(1e8, 1e8, 1e8)
+    flyBG.P = 15000
+    flyBG.D = 800
+    flyBG.CFrame = hrp.CFrame
+    flyBG.Parent = hrp
+
+    hum.AutoRotate = false
+
+    flyConn = RunService.RenderStepped:Connect(function(dt)
+        local cam = workspace.CurrentCamera
+        if not cam or not hrp.Parent then return end
+
+        local md = hum.MoveDirection
+        local targetVelocity = Vector3.zero
+
+        if md.Magnitude > 0 then
+            local look = cam.CFrame.LookVector
+            local flat = Vector3.new(look.X, 0, look.Z).Unit
+            local camRight = cam.CFrame.RightVector
+            local flatRight = Vector3.new(camRight.X, 0, camRight.Z).Unit
+
+            local forwardPush = md:Dot(flat)
+            local strafePush  = md:Dot(flatRight)
+
+            local moveVec = (cam.CFrame.LookVector * forwardPush) + (cam.CFrame.RightVector * strafePush)
+            targetVelocity = moveVec.Unit * flySpeed
+        end
+
+        targetVelocity += Vector3.new(0, vertical * flySpeed, 0)
+
+        -- Smooth Lerp (mengurangi stuttering saat joystick berbelok)
+        local smoothFactor = math.clamp(dt * 14, 0.05, 1)
+        currentVel = currentVel:Lerp(targetVelocity, smoothFactor)
+        flyBV.Velocity = currentVel
+
+        local camLook = cam.CFrame.LookVector
+        local faceDir = Vector3.new(camLook.X, 0, camLook.Z)
+        if faceDir.Magnitude > 0.01 then
+            flyBG.CFrame = flyBG.CFrame:Lerp(CFrame.new(hrp.Position, hrp.Position + faceDir), smoothFactor)
+        end
+    end)
+end
+
+-- Tombol Kontrol Elevasi Terbang (Mobile Touch)
+local upDown = Instance.new("Frame")
+upDown.Size = UDim2.fromOffset(48, 102)
+upDown.Position = UDim2.new(1, -66, 0.5, -51)
+upDown.BackgroundTransparency = 1
+upDown.Visible = false
+upDown.Parent = gui
+
+local function holdBtn(txt, y, dir)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.fromOffset(46, 46)
+    b.Position = UDim2.fromOffset(0, y)
+    b.BackgroundColor3 = ACCENT
+    b.BackgroundTransparency = 0.25
+    b.Text = txt
+    b.TextColor3 = WHITE
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 22
+    b.Parent = upDown
+    corner(b, 23)
+
+    b.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
+            vertical = dir
+            local releaseConn
+            releaseConn = i.Changed:Connect(function()
+                if i.UserInputState == Enum.UserInputState.End then
+                    if vertical == dir then vertical = 0 end
+                    releaseConn:Disconnect()
+                end
+            end)
+        end
+    end)
+end
+holdBtn("▲", 0, 1)
+holdBtn("▼", 54, -1)
+
+addToggle("Fly", function(on)
+    flyOn = on
+    upDown.Visible = on
+    vertical = 0
+    if on then startFly() else stopFly() end
+end)
+
+lp.CharacterAdded:Connect(function()
+    if flyOn then
+        task.wait(0.8)
+        startFly()
+    end
+end)
+
+---
+-- FITUR: HITBOX EXPANDER + VISUAL BOX (Enemy/Target Players Only)
+---
+local hitboxOn = false
+local hitboxLoop = nil
+local defaultProperties = {}
+
+local function cleanHitboxForPlayer(p)
+    if defaultProperties[p] then
+        local char = p.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.Size = defaultProperties[p].Size or Vector3.new(2, 2, 1)
+                hrp.Transparency = defaultProperties[p].Transparency or 1
+                hrp.CanCollide = defaultProperties[p].CanCollide or false
+            end
+            local box = char:FindFirstChild("VK_HitboxAdornment")
+            if box then box:Destroy() end
+        end
+        defaultProperties[p] = nil
     end
 end
 
-B1.MouseButton1Click:Connect(function()
-    InfJump = not InfJump
-    setT(B1, InfJump, "Infinite Jump  [ON]", "Infinite Jump  [OFF]")
-end)
-
-B2.MouseButton1Click:Connect(function()
-    Flying = not Flying
-    setT(B2, Flying, "Fly  [ON]", "Fly  [OFF]")
-    if Flying then startFly() else stopFly() end
-end)
-
-B3.MouseButton1Click:Connect(function()
-    Noclip = not Noclip
-    setT(B3, Noclip, "Noclip  [ON]", "Noclip  [OFF]")
-    if Noclip then startClip() else stopClip() end
-end)
-
-B4.MouseButton1Click:Connect(function()
-    SpeedOn = not SpeedOn
-    setT(B4, SpeedOn, "Speed Boost  [ON]", "Speed Boost  [OFF]")
-    setSpeed()
-end)
-
-B5.MouseButton1Click:Connect(function()
-    Immune = not Immune
-    setT(B5, Immune, "Immune  [ON]", "Immune  [OFF]")
-    if Immune then startImm() else stopImm() end
-end)
-
-B6.MouseButton1Click:Connect(function()
-    ESPOn = not ESPOn
-    setT(B6, ESPOn, "ESP Player  [ON]", "ESP Player  [OFF]")
-    if ESPOn then startESP() else stopESP() end
-end)
-
-B7.MouseButton1Click:Connect(function()
-    HitboxOn = not HitboxOn
-    setT(B7, HitboxOn, "Hitbox Expander  [ON]", "Hitbox Expander  [OFF]")
-    if not HitboxOn then
-        stopHitbox()
+local function cleanAllHitboxes()
+    for _, p in ipairs(Players:GetPlayers()) do
+        cleanHitboxForPlayer(p)
     end
-end)
+end
 
-HSBox.FocusLost:Connect(function()
-    local n = tonumber(HSBox.Text)
-    if n and n > 0 and n <= 50 then
-        HitboxSize = math.floor(n)
+local function applyHitbox()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character then
+            local char = p.Character
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+
+            if hrp and hum and hum.Health > 0 then
+                -- Backup state awal
+                if not defaultProperties[p] then
+                    defaultProperties[p] = {
+                        Size = hrp.Size,
+                        Transparency = hrp.Transparency,
+                        CanCollide = hrp.CanCollide
+                    }
+                end
+
+                -- Ubah ukuran collision box
+                hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+                hrp.CanCollide = false
+                hrp.Transparency = 1
+
+                -- Visualisasi Kotak Putih
+                local box = char:FindFirstChild("VK_HitboxAdornment")
+                if not box then
+                    box = Instance.new("BoxHandleAdornment")
+                    box.Name = "VK_HitboxAdornment"
+                    box.Adornee = hrp
+                    box.AlwaysOnTop = true
+                    box.ZIndex = 5
+                    box.Color3 = WHITE
+                    box.Parent = char
+                end
+
+                box.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+
+                -- Kontrol Alpha: Nilai 0 = Hilang (Full Transparan), 1-10 = Solid bertahap
+                if hitboxAlpha <= 0 then
+                    box.Visible = false
+                    box.Transparency = 1
+                else
+                    box.Visible = true
+                    -- Mapping 1 -> 0.85 (tipis), 10 -> 0.15 (jelas)
+                    box.Transparency = math.clamp(1 - (hitboxAlpha / 10) * 0.85, 0.1, 0.9)
+                end
+            end
+        end
     end
-    HSBox.Text = tostring(HitboxSize)
-end)
+end
 
-FS.FocusLost:Connect(function()
-    local n = tonumber(FS.Text)
-    if n and n > 0 and n <= 500 then FlySpeed = math.floor(n) end
-    FS.Text = tostring(FlySpeed)
-end)
-
-RS.FocusLost:Connect(function()
-    local val = tonumber(RS.Text)
-    if val and val > 0 and val <= 500 then
-        RunSpeed = math.floor(val)
-        if SpeedOn then setSpeed() end
-    end
-    RS.Text = tostring(RunSpeed)
-end)
-
-TP.MouseButton1Click:Connect(function()
-    local ok, name = tpTo(TB.Text)
-    if ok then
-        Stat.Text = "TP → " .. tostring(name)
-        Stat.TextColor3 = Color3.fromRGB(100, 220, 150)
+addToggle("Hitbox", function(on)
+    hitboxOn = on
+    if on then
+        hitboxLoop = RunService.RenderStepped:Connect(function()
+            applyHitbox()
+        end)
     else
-        Stat.Text = "Player not found"
-        Stat.TextColor3 = Color3.fromRGB(220, 100, 100)
+        if hitboxLoop then hitboxLoop:Disconnect(); hitboxLoop = nil end
+        cleanAllHitboxes()
     end
 end)
 
-print("[Vinz Kazuma] Loaded OK")
+Players.PlayerRemoving:Connect(function(p)
+    defaultProperties[p] = nil
+end)
+
+---
+-- FITUR: ESP (Highlight + Tag Nama)
+---
+local espOn = false
+local espData = {}
+
+local function clearESP()
+    for _, d in pairs(espData) do 
+        if d.folder then d.folder:Destroy() end 
+    end
+    table.clear(espData)
+end
+
+local function updateESP()
+    for p, d in pairs(espData) do
+        if not p.Parent or d.char ~= p.Character then
+            if d.folder then d.folder:Destroy() end
+            espData[p] = nil
+        end
+    end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        local char = p.Character
+        if p ~= lp and char and not espData[p] then
+            local f = Instance.new("Folder")
+            f.Name = "ESP_" .. p.Name
+            f.Parent = gui
+
+            local hl = Instance.new("Highlight")
+            hl.Adornee = char
+            hl.FillColor = ACCENT
+            hl.FillTransparency = 0.65
+            hl.OutlineColor = WHITE
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Parent = f
+
+            local head = char:FindFirstChild("Head")
+            if head then
+                local bb = Instance.new("BillboardGui")
+                bb.Adornee = head
+                bb.AlwaysOnTop = true
+                bb.Size = UDim2.fromOffset(110, 18)
+                bb.StudsOffset = Vector3.new(0, 2.5, 0)
+                bb.Parent = f
+
+                local t = Instance.new("TextLabel")
+                t.Size = UDim2.fromScale(1, 1)
+                t.BackgroundTransparency = 1
+                t.Text = p.DisplayName
+                t.TextColor3 = WHITE
+                t.TextStrokeTransparency = 0.2
+                t.Font = Enum.Font.GothamBold
+                t.TextSize = 12
+                t.Parent = bb
+            end
+            espData[p] = { folder = f, char = char }
+        end
+    end
+end
+
+addToggle("ESP", function(on)
+    espOn = on
+    if on then
+        task.spawn(function()
+            while espOn do
+                pcall(updateESP)
+                task.wait(1)
+            end
+        end)
+    else
+        clearESP()
+    end
+end)
+
+---
+-- FITUR: FULLBRIGHT
+---
+local fbOn = false
+local origLight = {
+    Brightness     = Lighting.Brightness,
+    ClockTime      = Lighting.ClockTime,
+    FogEnd         = Lighting.FogEnd,
+    GlobalShadows  = Lighting.GlobalShadows,
+    Ambient        = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+}
+
+RunService.RenderStepped:Connect(function()
+    if fbOn then
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 1e6
+        Lighting.GlobalShadows = false
+        Lighting.Ambient = Color3.fromRGB(220, 220, 220)
+        Lighting.OutdoorAmbient = Color3.fromRGB(220, 220, 220)
+    end
+end)
+
+addToggle("Fullbright", function(on)
+    fbOn = on
+    if not on then
+        for k, v in pairs(origLight) do Lighting[k] = v end
+    end
+end)
+
+---
+-- FITUR: ANTI-AFK
+---
+local afkConn
+addToggle("Anti AFK", function(on)
+    if afkConn then afkConn:Disconnect(); afkConn = nil end
+    if on then
+        afkConn = lp.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
+    end
+end)
+
+---
+-- FITUR BARU: ANTI-FLING
+---
+local antiFlingConn
+addToggle("Anti Fling", function(on)
+    if antiFlingConn then antiFlingConn:Disconnect(); antiFlingConn = nil end
+    if on then
+        antiFlingConn = RunService.Stepped:Connect(function()
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= lp and p.Character then
+                    for _, part in ipairs(p.Character:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+---
+-- FITUR BARU: CLICK TELEPORT TOOL
+---
+local tpTool = nil
+addToggle("TP Tool", function(on)
+    if on then
+        if not lp.Backpack:FindFirstChild("Click TP") then
+            tpTool = Instance.new("Tool")
+            tpTool.Name = "Click TP"
+            tpTool.RequiresHandle = false
+            tpTool.Activated:Connect(function()
+                local mouse = lp:GetMouse()
+                local hrp = getRoot()
+                if hrp and mouse.Hit then
+                    hrp.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0, 3, 0))
+                end
+            end)
+            tpTool.Parent = lp.Backpack
+        end
+    else
+        local t = lp.Backpack:FindFirstChild("Click TP") or (lp.Character and lp.Character:FindFirstChild("Click TP"))
+        if t then t:Destroy() end
+    end
+end)
+
+---
+-- TOMBOL AKSI
+---
+addAction("Teleport Random", function()
+    local targetList = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            table.insert(targetList, p.Character.HumanoidRootPart)
+        end
+    end
+    if #targetList > 0 then
+        local chosen = targetList[math.random(1, #targetList)]
+        local hrp = getRoot()
+        if hrp then
+            hrp.CFrame = chosen.CFrame * CFrame.new(0, 2, 3)
+        end
+    end
+end)
+
+addAction("FPS Boost", function()
+    pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+    Lighting.GlobalShadows = false
+    origLight.GlobalShadows = false
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("BasePart") then
+            v.Material = Enum.Material.SmoothPlastic
+            v.CastShadow = false
+        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
+            v.Enabled = false
+        end
+    end
+end)
+
+addAction("Reset Char", function()
+    local h = getHum()
+    if h then h.Health = 0 end
+end)
+
+addAction("Rejoin", function()
+    if #Players:GetPlayers() <= 1 then
+        lp:Kick("\nRejoining server...")
+        task.wait()
+        TeleportService:Teleport(game.PlaceId, lp)
+    else
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, lp)
+    end
+end)
+
+---
+-- NOTIFIKASI BOOT
+---
+pcall(function()
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "Vinz Kazuma Hub",
+        Text = "Loaded. Hitbox & Smooth Fly siap digunakan.",
+        Duration = 3,
+    })
+end)

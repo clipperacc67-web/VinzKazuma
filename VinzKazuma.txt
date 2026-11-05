@@ -107,7 +107,8 @@ local function getRoot()
 end
 
 ---
--- FITUR: FE DROPKICK (FLING KICK SEPERTI DI VIDEO)
+---
+-- FITUR: FE DROPKICK (PERBAIKAN FISIKA & POSE)
 ---
 local dropkickActive = false
 local function executeDropkick()
@@ -119,6 +120,19 @@ local function executeDropkick()
 
     dropkickActive = true
 
+    -- 1. Kunci agar karakter sendiri tidak ragdoll / terjatuh saat meluncur
+    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+
+    -- 2. Matikan CanCollide karakter sendiri sementara agar tidak bentrok dengan lantai / target
+    local savedCollides = {}
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.CanCollide then
+            table.insert(savedCollides, part)
+            part.CanCollide = false
+        end
+    end
+
     local cam = workspace.CurrentCamera
     local look = cam and cam.CFrame.LookVector or hrp.CFrame.LookVector
     local moveDir = Vector3.new(look.X, 0, look.Z).Unit
@@ -126,58 +140,88 @@ local function executeDropkick()
         moveDir = hrp.CFrame.LookVector
     end
 
-    -- Animasi tendangan (R6 / R15)
-    local animTrack = nil
-    pcall(function()
-        local animId = "rbxassetid://303376356"
-        local anim = Instance.new("Animation")
-        anim.AnimationId = animId
-        animTrack = hum:LoadAnimation(anim)
-        animTrack.Priority = Enum.AnimationPriority.Action
-        animTrack:Play(0.05, 1, 1.6)
-    end)
+    -- 3. Pose Dropkick Prosedural (Universal R6 & R15 tanpa perlu load ID animasi)
+    local isR6 = hum.RigType == Enum.RigType.R6
+    local originalC0 = nil
+    local targetJoint = nil
 
-    -- Dorongan meluncur horizontal ke depan
+    if isR6 then
+        targetJoint = hrp:FindFirstChild("RootJoint")
+    else
+        local lowerTorso = char:FindFirstChild("LowerTorso")
+        targetJoint = lowerTorso and lowerTorso:FindFirstChild("Root")
+    end
+
+    if targetJoint then
+        originalC0 = targetJoint.C0
+        -- Memutar badan melayang horizontal dengan kaki menjulur ke depan
+        targetJoint.C0 = originalC0 * CFrame.Angles(math.rad(-85), 0, 0)
+    end
+
+    -- 4. Dorongan meluncur ke depan
     local bv = Instance.new("BodyVelocity")
     bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-    bv.Velocity = (moveDir * 85) + Vector3.new(0, 18, 0)
+    bv.Velocity = (moveDir * 95) + Vector3.new(0, 12, 0)
     bv.Parent = hrp
 
-    -- Rotasi horizontal tubuh dropkick
     local bg = Instance.new("BodyGyro")
     bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-    bg.P = 60000
-    bg.D = 400
-    bg.CFrame = CFrame.new(hrp.Position, hrp.Position + moveDir) * CFrame.Angles(math.rad(-80), 0, 0)
+    bg.P = 40000
+    bg.D = 500
+    bg.CFrame = CFrame.new(hrp.Position, hrp.Position + moveDir)
     bg.Parent = hrp
 
-    -- Fling loop pada pemain lain yang tertabrak
+    -- 5. Lontarkan HANYA pemain lain yang terkena jangkauan kaki dropkick
     local flingConn = nil
-    flingConn = RunService.Heartbeat:Connect(function()
+    flingConn = RunService.Stepped:Connect(function()
         if not dropkickActive or not hrp.Parent then return end
-        hrp.AssemblyAngularVelocity = Vector3.new(0, 85000, 0)
+
+        for _, part in ipairs(savedCollides) do
+            if part and part.Parent then
+                part.CanCollide = false
+            end
+        end
 
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= lp and p.Character then
                 local eRoot = p.Character:FindFirstChild("HumanoidRootPart")
                 if eRoot and (eRoot.Position - hrp.Position).Magnitude < 8.5 then
-                    eRoot.AssemblyLinearVelocity = (moveDir * 380) + Vector3.new(0, 220, 0)
-                    eRoot.AssemblyAngularVelocity = Vector3.new(math.random(-8000, 8000), math.random(10000, 20000), math.random(-8000, 8000))
+                    -- Lontarkan musuh dengan kecepatan tinggi
+                    eRoot.AssemblyLinearVelocity = (moveDir * 420) + Vector3.new(0, 260, 0)
+                    eRoot.AssemblyAngularVelocity = Vector3.new(
+                        math.random(-15000, 15000),
+                        math.random(25000, 50000),
+                        math.random(-15000, 15000)
+                    )
                 end
             end
         end
     end)
 
-    task.wait(0.85)
+    task.wait(0.75)
 
+    -- 6. Bersihkan & Kembalikan Kondisi Karakter Seperti Semula
     if flingConn then flingConn:Disconnect() end
     if bv then bv:Destroy() end
     if bg then bg:Destroy() end
-    if animTrack then animTrack:Stop(0.15); animTrack:Destroy() end
 
-    hrp.AssemblyAngularVelocity = Vector3.zero
+    if targetJoint and originalC0 then
+        targetJoint.C0 = originalC0
+    end
+
+    for _, part in ipairs(savedCollides) do
+        if part and part.Parent then
+            part.CanCollide = true
+        end
+    end
+
     hrp.AssemblyLinearVelocity = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+
+    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
     hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+
     dropkickActive = false
 end
 

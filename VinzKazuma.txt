@@ -1,6 +1,7 @@
 --[[
-    Vinz Kazuma Hub - Universal Script (Delta Executor / Android)
-    Build: Optimized Mobile Touch & Vector Smoothing
+    Vinz Kazuma Hub - Universal Mobile Edition
+    UI Style: Modern Sidebar & Tabs (Inspired by Codium/Rayfield)
+    Features: Cinematic Loading, Smooth Tween, Hitbox Expander, Tab Categorized
 ]]
 
 local Players = game:GetService("Players")
@@ -9,36 +10,37 @@ local UIS = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
 local TeleportService = game:GetService("TeleportService")
 local VirtualUser = game:GetService("VirtualUser")
+local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 
 local lp = Players.LocalPlayer
 
--- Cleanup instance lama
+-- Bersihkan instance GUI lama jika ada
 pcall(function()
-    local old = (gethui and gethui() or CoreGui):FindFirstChild("VinzKazuma")
+    local old = (gethui and gethui() or CoreGui):FindFirstChild("VinzKazumaModern")
     if old then old:Destroy() end
 end)
 pcall(function()
-    local old = lp.PlayerGui:FindFirstChild("VinzKazuma")
+    local old = lp.PlayerGui:FindFirstChild("VinzKazumaModern")
     if old then old:Destroy() end
 end)
 
 ---
--- PALET WARNA
+-- PALET TEMA MODERN
 ---
-local BG      = Color3.fromRGB(18, 18, 24)
-local BAR     = Color3.fromRGB(28, 24, 44)
-local OFF     = Color3.fromRGB(38, 38, 50)
-local ACCENT  = Color3.fromRGB(130, 80, 255)
-local DANGER  = Color3.fromRGB(210, 50, 65)
-local ACTION  = Color3.fromRGB(55, 85, 150)
-local WHITE   = Color3.fromRGB(255, 255, 255)
+local C_BG       = Color3.fromRGB(16, 17, 22)
+local C_SIDEBAR  = Color3.fromRGB(22, 23, 30)
+local C_CARD     = Color3.fromRGB(28, 29, 38)
+local C_CARD_SUB = Color3.fromRGB(34, 35, 46)
+local C_ACCENT   = Color3.fromRGB(130, 80, 255)
+local C_ACCENT_HOVER = Color3.fromRGB(150, 105, 255)
+local C_WHITE    = Color3.fromRGB(245, 245, 245)
+local C_MUTED    = Color3.fromRGB(150, 150, 165)
+local C_DANGER   = Color3.fromRGB(235, 60, 75)
+local C_TOGGLE_OFF = Color3.fromRGB(50, 50, 65)
 
----
--- GUI ROOT
----
 local gui = Instance.new("ScreenGui")
-gui.Name = "VinzKazuma"
+gui.Name = "VinzKazumaModern"
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.IgnoreGuiInset = true
@@ -48,11 +50,19 @@ if not ok or not gui.Parent then
     gui.Parent = lp:WaitForChild("PlayerGui") 
 end
 
-local function corner(obj, r)
+local function addCorner(obj, r)
     local c = Instance.new("UICorner")
     c.CornerRadius = UDim.new(0, r)
     c.Parent = obj
     return c
+end
+
+local function addStroke(obj, color, thickness)
+    local s = Instance.new("UIStroke")
+    s.Color = color
+    s.Thickness = thickness or 1
+    s.Parent = obj
+    return s
 end
 
 local function makeDraggable(handle, target, onClick)
@@ -85,243 +95,636 @@ local function makeDraggable(handle, target, onClick)
 end
 
 ---
--- LOGO FLOATING "V"
+-- INTRO / CINEMATIC LOADING ANIMATION
 ---
-local logo = Instance.new("TextButton")
-logo.Name = "Logo"
-logo.Size = UDim2.fromOffset(46, 46)
-logo.Position = UDim2.new(0, 16, 0.35, 0)
-logo.BackgroundColor3 = BG
-logo.Text = "V"
-logo.TextColor3 = ACCENT
-logo.Font = Enum.Font.GothamBlack
-logo.TextSize = 26
-logo.AutoButtonColor = false
-logo.Parent = gui
-corner(logo, 23)
+local introLayer = Instance.new("Frame")
+introLayer.Name = "IntroLayer"
+introLayer.Size = UDim2.fromScale(1, 1)
+introLayer.BackgroundTransparency = 1
+introLayer.Parent = gui
 
-local ls = Instance.new("UIStroke")
-ls.Color = ACCENT
-ls.Thickness = 2
-ls.Parent = logo
+local introCenter = Instance.new("Frame")
+introCenter.Size = UDim2.fromOffset(260, 60)
+introCenter.Position = UDim2.new(0.5, -130, 1.2, 0) -- Mulai dari bawah layar
+introCenter.BackgroundTransparency = 1
+introCenter.ClipsDescendants = true
+introCenter.Parent = introLayer
+
+local introLogo = Instance.new("TextLabel")
+introLogo.Size = UDim2.fromOffset(50, 50)
+introLogo.Position = UDim2.new(0, 0, 0.5, -25)
+introLogo.BackgroundColor3 = C_SIDEBAR
+introLogo.Text = "V"
+introLogo.TextColor3 = C_ACCENT
+introLogo.Font = Enum.Font.GothamBlack
+introLogo.TextSize = 30
+introLogo.Parent = introCenter
+addCorner(introLogo, 25)
+addStroke(introLogo, C_ACCENT, 2)
+
+local introText = Instance.new("TextLabel")
+introText.Size = UDim2.new(0, 190, 0, 40)
+introText.Position = UDim2.new(0, 55, 0.5, -20)
+introText.BackgroundTransparency = 1
+introText.Text = "Vinz Kazuma"
+introText.TextColor3 = C_WHITE
+introText.Font = Enum.Font.GothamBold
+introText.TextSize = 24
+introText.TextXAlignment = Enum.TextXAlignment.Left
+introText.TextTransparency = 1
+introText.Parent = introCenter
 
 ---
--- MAIN MENU
+-- FLOATING TOGGLE LOGO (KIRI LAYAR)
 ---
-local menu = Instance.new("Frame")
-menu.Name = "Menu"
-menu.Size = UDim2.fromOffset(250, 310)
-menu.Position = UDim2.new(0.5, -125, 0.5, -155)
-menu.BackgroundColor3 = BG
-menu.Visible = false
-menu.Active = true
-menu.ClipsDescendants = true
-menu.Parent = gui
-corner(menu, 12)
+local mainLogo = Instance.new("TextButton")
+mainLogo.Name = "FloatingLogo"
+mainLogo.Size = UDim2.fromOffset(46, 46)
+mainLogo.Position = UDim2.new(0, 15, 0.4, 0)
+mainLogo.BackgroundColor3 = C_SIDEBAR
+mainLogo.Text = "V"
+mainLogo.TextColor3 = C_ACCENT
+mainLogo.Font = Enum.Font.GothamBlack
+mainLogo.TextSize = 24
+mainLogo.Visible = false
+mainLogo.AutoButtonColor = false
+mainLogo.Parent = gui
+addCorner(mainLogo, 23)
+addStroke(mainLogo, C_ACCENT, 1.8)
 
-local ms = Instance.new("UIStroke")
-ms.Color = ACCENT
-ms.Thickness = 1.5
-ms.Parent = menu
+---
+-- MAIN WINDOW (DESAIN MIRIP CODIUM/RAYFIELD)
+---
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.fromOffset(530, 330)
+mainFrame.Position = UDim2.new(0.5, -265, 0.5, -165)
+mainFrame.BackgroundColor3 = C_BG
+mainFrame.Visible = false
+mainFrame.ClipsDescendants = true
+mainFrame.Parent = gui
+addCorner(mainFrame, 12)
+addStroke(mainFrame, Color3.fromRGB(45, 45, 60), 1)
 
-local bar = Instance.new("Frame")
-bar.Size = UDim2.new(1, 0, 0, 32)
-bar.BackgroundColor3 = BAR
-bar.Parent = menu
-corner(bar, 12)
+local mainScale = Instance.new("UIScale")
+mainScale.Scale = 1
+mainScale.Parent = mainFrame
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -45, 1, 0)
-title.Position = UDim2.fromOffset(12, 0)
-title.BackgroundTransparency = 1
-title.Text = "Vinz Kazuma Hub"
-title.TextColor3 = WHITE
-title.Font = Enum.Font.GothamBold
-title.TextSize = 14
-title.TextXAlignment = Enum.TextXAlignment.Left
-title.Parent = bar
+-- Topbar
+local topBar = Instance.new("Frame")
+topBar.Size = UDim2.new(1, 0, 0, 36)
+topBar.BackgroundColor3 = C_SIDEBAR
+topBar.Parent = mainFrame
+addCorner(topBar, 12)
+
+local titleHub = Instance.new("TextLabel")
+titleHub.Size = UDim2.new(0.6, 0, 1, 0)
+titleHub.Position = UDim2.fromOffset(14, 0)
+titleHub.BackgroundTransparency = 1
+titleHub.Text = "VINZ KAZUMA | UNIVERSAL"
+titleHub.TextColor3 = C_WHITE
+titleHub.Font = Enum.Font.GothamBold
+titleHub.TextSize = 13
+titleHub.TextXAlignment = Enum.TextXAlignment.Left
+titleHub.Parent = topBar
 
 local closeBtn = Instance.new("TextButton")
-closeBtn.Size = UDim2.fromOffset(24, 22)
-closeBtn.Position = UDim2.new(1, -30, 0.5, -11)
-closeBtn.BackgroundColor3 = DANGER
-closeBtn.Text = "X"
-closeBtn.TextColor3 = WHITE
+closeBtn.Size = UDim2.fromOffset(26, 24)
+closeBtn.Position = UDim2.new(1, -34, 0.5, -12)
+closeBtn.BackgroundColor3 = C_DANGER
+closeBtn.Text = "✕"
+closeBtn.TextColor3 = C_WHITE
 closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 13
-closeBtn.Parent = bar
-corner(closeBtn, 6)
-closeBtn.Activated:Connect(function() menu.Visible = false end)
+closeBtn.TextSize = 12
+closeBtn.Parent = topBar
+addCorner(closeBtn, 6)
 
-makeDraggable(bar, menu)
-makeDraggable(logo, logo, function() menu.Visible = not menu.Visible end)
+-- Sidebar (Navigasi Kategori)
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 140, 1, -36)
+sidebar.Position = UDim2.new(0, 0, 0, 36)
+sidebar.BackgroundColor3 = C_SIDEBAR
+sidebar.BorderSizePixel = 0
+sidebar.Parent = mainFrame
 
-local body = Instance.new("Frame")
-body.Size = UDim2.new(1, -16, 1, -40)
-body.Position = UDim2.fromOffset(8, 36)
-body.BackgroundTransparency = 1
-body.Parent = menu
+local tabContainer = Instance.new("ScrollingFrame")
+tabContainer.Size = UDim2.new(1, 0, 1, -48)
+tabContainer.BackgroundTransparency = 1
+tabContainer.BorderSizePixel = 0
+tabContainer.ScrollBarThickness = 0
+tabContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
+tabContainer.Parent = sidebar
+
+local tabListLayout = Instance.new("UIListLayout")
+tabListLayout.Padding = UDim.new(0, 4)
+tabListLayout.Parent = tabContainer
+
+local tabPadding = Instance.new("UIPadding")
+tabPadding.PaddingTop = UDim.new(0, 8)
+tabPadding.PaddingLeft = UDim.new(0, 8)
+tabPadding.PaddingRight = UDim.new(0, 8)
+tabPadding.Parent = tabContainer
+
+-- Profile Footer di bawah Sidebar (Mirip Gambar)
+local userProfile = Instance.new("Frame")
+userProfile.Size = UDim2.new(1, 0, 0, 48)
+userProfile.Position = UDim2.new(0, 0, 1, -48)
+userProfile.BackgroundColor3 = Color3.fromRGB(18, 19, 25)
+userProfile.BorderSizePixel = 0
+userProfile.Parent = sidebar
+
+local userThumb = Instance.new("ImageLabel")
+userThumb.Size = UDim2.fromOffset(32, 32)
+userThumb.Position = UDim2.new(0, 8, 0.5, -16)
+userThumb.BackgroundTransparency = 1
+userThumb.Image = Players:GetUserThumbnailAsync(lp.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+userThumb.Parent = userProfile
+addCorner(userThumb, 16)
+
+local userName = Instance.new("TextLabel")
+userName.Size = UDim2.new(1, -48, 0, 16)
+userName.Position = UDim2.new(0, 46, 0, 8)
+userName.BackgroundTransparency = 1
+userName.Text = lp.DisplayName
+userName.TextColor3 = C_WHITE
+userName.Font = Enum.Font.GothamBold
+userName.TextSize = 11
+userName.TextXAlignment = Enum.TextXAlignment.Left
+userName.TextTruncate = Enum.TextTruncate.AtEnd
+userName.Parent = userProfile
+
+local userRole = Instance.new("TextLabel")
+userRole.Size = UDim2.new(1, -48, 0, 14)
+userRole.Position = UDim2.new(0, 46, 0, 24)
+userRole.BackgroundTransparency = 1
+userRole.Text = "VIP User"
+userRole.TextColor3 = C_ACCENT
+userRole.Font = Enum.Font.GothamMedium
+userRole.TextSize = 10
+userRole.TextXAlignment = Enum.TextXAlignment.Left
+userRole.Parent = userProfile
+
+-- Container Halaman Konten
+local pages = Instance.new("Frame")
+pages.Size = UDim2.new(1, -148, 1, -44)
+pages.Position = UDim2.new(0, 144, 0, 40)
+pages.BackgroundTransparency = 1
+pages.Parent = mainFrame
 
 ---
--- STEPPER ENGINE
+-- ANIMASI BUKA / TUTUP MENU
 ---
-local stepScroll = Instance.new("ScrollingFrame")
-stepScroll.Size = UDim2.new(1, 0, 0, 115)
-stepScroll.BackgroundTransparency = 1
-stepScroll.BorderSizePixel = 0
-stepScroll.ScrollBarThickness = 2
-stepScroll.ScrollBarImageColor3 = ACCENT
-stepScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-stepScroll.CanvasSize = UDim2.new()
-stepScroll.Parent = body
-
-local sl = Instance.new("UIListLayout")
-sl.Padding = UDim.new(0, 4)
-sl.SortOrder = Enum.SortOrder.LayoutOrder
-sl.Parent = stepScroll
-
-local stepOrder = 0
-local function makeStepper(name, min, max, step, default, onChange)
-    stepOrder += 1
-    local value = default
-    local row = Instance.new("Frame")
-    row.LayoutOrder = stepOrder
-    row.Size = UDim2.new(1, -4, 0, 26)
-    row.BackgroundColor3 = OFF
-    row.Parent = stepScroll
-    corner(row, 6)
-
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(0.55, 0, 1, 0)
-    lbl.Position = UDim2.fromOffset(8, 0)
-    lbl.BackgroundTransparency = 1
-    lbl.TextColor3 = WHITE
-    lbl.Font = Enum.Font.GothamMedium
-    lbl.TextSize = 11
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.Parent = row
-
-    local function refresh()
-        lbl.Text = string.format("%s: %s", name, tostring(value))
-        onChange(value)
+local function toggleMenu(visible)
+    if visible then
+        mainFrame.Visible = true
+        mainScale.Scale = 0.85
+        TweenService:Create(mainScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+    else
+        local tw = TweenService:Create(mainScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85})
+        tw:Play()
+        tw.Completed:Connect(function()
+            if not mainFrame.Visible or mainScale.Scale <= 0.86 then
+                mainFrame.Visible = false
+            end
+        end)
     end
-
-    local function btn(txt, xScale)
-        local b = Instance.new("TextButton")
-        b.Size = UDim2.new(0.18, 0, 0, 20)
-        b.Position = UDim2.new(xScale, 0, 0.5, -10)
-        b.BackgroundColor3 = ACCENT
-        b.Text = txt
-        b.TextColor3 = WHITE
-        b.Font = Enum.Font.GothamBold
-        b.TextSize = 13
-        b.Parent = row
-        corner(b, 5)
-        return b
-    end
-
-    btn("-", 0.60).Activated:Connect(function()
-        value = math.clamp(value - step, min, max)
-        refresh()
-    end)
-    btn("+", 0.80).Activated:Connect(function()
-        value = math.clamp(value + step, min, max)
-        refresh()
-    end)
-    refresh()
 end
 
----
--- VALUE REGISTERS
----
-local speedVal   = 16
-local flySpeed   = 50
-local hitboxSize = 15
-local hitboxAlpha = 5 -- Skala 0 - 10 (0 = Invisible / Transparan total)
-local targetFov  = 70
+closeBtn.Activated:Connect(function()
+    toggleMenu(false)
+end)
 
-makeStepper("Speed", 16, 250, 8, 16, function(v) speedVal = v end)
-makeStepper("Fly Speed", 10, 250, 10, 50, function(v) flySpeed = v end)
-makeStepper("Hitbox Size", 2, 60, 2, 15, function(v) hitboxSize = v end)
-makeStepper("Hitbox Vis", 0, 10, 1, 5, function(v) hitboxAlpha = v end)
-makeStepper("Field of View", 60, 120, 5, 70, function(v)
-    targetFov = v
-    local cam = workspace.CurrentCamera
-    if cam then cam.FieldOfView = v end
+makeDraggable(topBar, mainFrame)
+makeDraggable(mainLogo, mainLogo, function()
+    toggleMenu(not mainFrame.Visible)
 end)
 
 ---
--- BUTTON GRID (2 Kolom)
+-- SISTEM TAB & ELEMEN KONTEN
 ---
-local scroll = Instance.new("ScrollingFrame")
-scroll.Size = UDim2.new(1, 0, 1, -122)
-scroll.Position = UDim2.fromOffset(0, 120)
-scroll.BackgroundTransparency = 1
-scroll.BorderSizePixel = 0
-scroll.ScrollBarThickness = 3
-scroll.ScrollBarImageColor3 = ACCENT
-scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-scroll.CanvasSize = UDim2.new()
-scroll.Parent = body
+local tabs = {}
+local activeTab = nil
 
-local grid = Instance.new("UIGridLayout")
-grid.CellSize = UDim2.new(0.5, -4, 0, 28)
-grid.CellPadding = UDim2.fromOffset(6, 6)
-grid.SortOrder = Enum.SortOrder.LayoutOrder
-grid.Parent = scroll
+local function createTab(tabName)
+    local tabBtn = Instance.new("TextButton")
+    tabBtn.Size = UDim2.new(1, 0, 0, 32)
+    tabBtn.BackgroundColor3 = C_CARD
+    tabBtn.BackgroundTransparency = 1
+    tabBtn.Text = "  " .. tabName
+    tabBtn.TextColor3 = C_MUTED
+    tabBtn.Font = Enum.Font.GothamMedium
+    tabBtn.TextSize = 12
+    tabBtn.TextXAlignment = Enum.TextXAlignment.Left
+    tabBtn.AutoButtonColor = false
+    tabBtn.Parent = tabContainer
+    addCorner(tabBtn, 6)
 
-local order = 0
-local function newButton(text, color)
-    order += 1
-    local b = Instance.new("TextButton")
-    b.LayoutOrder = order
-    b.BackgroundColor3 = color
-    b.Text = text
-    b.TextColor3 = WHITE
-    b.Font = Enum.Font.GothamBold
-    b.TextSize = 11
-    b.AutoButtonColor = true
-    b.Parent = scroll
-    corner(b, 6)
-    return b
-end
+    local pageScroll = Instance.new("ScrollingFrame")
+    pageScroll.Size = UDim2.fromScale(1, 1)
+    pageScroll.BackgroundTransparency = 1
+    pageScroll.BorderSizePixel = 0
+    pageScroll.ScrollBarThickness = 3
+    pageScroll.ScrollBarImageColor3 = C_ACCENT
+    pageScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    pageScroll.Visible = false
+    pageScroll.Parent = pages
 
-local function addToggle(text, callback)
-    local b = newButton(text, OFF)
-    local on = false
-    b.Activated:Connect(function()
-        on = not on
-        b.BackgroundColor3 = on and ACCENT or OFF
-        local s, e = pcall(callback, on)
-        if not s then warn("[Vinz Kazuma] " .. tostring(e)) end
-    end)
-end
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 8)
+    layout.Parent = pageScroll
 
-local function addAction(text, callback)
-    local b = newButton(text, ACTION)
-    b.Activated:Connect(function()
-        local s, e = pcall(callback)
-        if not s then warn("[Vinz Kazuma] " .. tostring(e)) end
-    end)
+    local pad = Instance.new("UIPadding")
+    pad.PaddingRight = UDim.new(0, 8)
+    pad.PaddingTop = UDim.new(0, 2)
+    pad.Parent = pageScroll
+
+    local tabObj = {
+        Button = tabBtn,
+        Page = pageScroll
+    }
+
+    local function activate()
+        if activeTab == tabObj then return end
+        for _, t in pairs(tabs) do
+            t.Page.Visible = false
+            TweenService:Create(t.Button, TweenInfo.new(0.2), {TextColor3 = C_MUTED, BackgroundTransparency = 1}):Play()
+        end
+        activeTab = tabObj
+        tabObj.Page.Visible = true
+        TweenService:Create(tabBtn, TweenInfo.new(0.2), {TextColor3 = C_WHITE, BackgroundTransparency = 0, BackgroundColor3 = C_CARD}):Play()
+    end
+
+    tabBtn.Activated:Connect(activate)
+    tabs[tabName] = tabObj
+
+    if not activeTab then activate() end
+
+    -- Helper Komponen UI
+    local components = {}
+
+    -- 1. Switch Modern (Mirip Gambar)
+    function components:AddToggle(title, default, callback)
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, 0, 0, 42)
+        card.BackgroundColor3 = C_CARD
+        card.Parent = pageScroll
+        addCorner(card, 8)
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, -70, 1, 0)
+        label.Position = UDim2.fromOffset(12, 0)
+        label.BackgroundTransparency = 1
+        label.Text = title
+        label.TextColor3 = C_WHITE
+        label.Font = Enum.Font.GothamMedium
+        label.TextSize = 12
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = card
+
+        local switch = Instance.new("TextButton")
+        switch.Size = UDim2.fromOffset(44, 22)
+        switch.Position = UDim2.new(1, -54, 0.5, -11)
+        switch.BackgroundColor3 = default and C_ACCENT or C_TOGGLE_OFF
+        switch.Text = ""
+        switch.Parent = card
+        addCorner(switch, 11)
+
+        local knob = Instance.new("Frame")
+        knob.Size = UDim2.fromOffset(16, 16)
+        knob.Position = default and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+        knob.BackgroundColor3 = C_WHITE
+        knob.Parent = switch
+        addCorner(knob, 8)
+
+        local state = default
+        switch.Activated:Connect(function()
+            state = not state
+            local targetPos = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+            local targetColor = state and C_ACCENT or C_TOGGLE_OFF
+            TweenService:Create(knob, TweenInfo.new(0.18), {Position = targetPos}):Play()
+            TweenService:Create(switch, TweenInfo.new(0.18), {BackgroundColor3 = targetColor}):Play()
+            pcall(callback, state)
+        end)
+    end
+
+    -- 2. Stepper Plus / Minus
+    function components:AddStepper(title, min, max, step, default, callback)
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, 0, 0, 42)
+        card.BackgroundColor3 = C_CARD
+        card.Parent = pageScroll
+        addCorner(card, 8)
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.5, 0, 1, 0)
+        label.Position = UDim2.fromOffset(12, 0)
+        label.BackgroundTransparency = 1
+        label.TextColor3 = C_WHITE
+        label.Font = Enum.Font.GothamMedium
+        label.TextSize = 12
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = card
+
+        local value = default
+        local function refresh()
+            label.Text = string.format("%s: %d", title, value)
+            pcall(callback, value)
+        end
+
+        local function makeBtn(txt, xOff)
+            local b = Instance.new("TextButton")
+            b.Size = UDim2.fromOffset(28, 26)
+            b.Position = UDim2.new(1, xOff, 0.5, -13)
+            b.BackgroundColor3 = C_CARD_SUB
+            b.Text = txt
+            b.TextColor3 = C_WHITE
+            b.Font = Enum.Font.GothamBold
+            b.TextSize = 14
+            b.Parent = card
+            addCorner(b, 6)
+            return b
+        end
+
+        makeBtn("-", -68).Activated:Connect(function()
+            value = math.clamp(value - step, min, max)
+            refresh()
+        end)
+        makeBtn("+", -34).Activated:Connect(function()
+            value = math.clamp(value + step, min, max)
+            refresh()
+        end)
+        refresh()
+    end
+
+    -- 3. Tombol Eksekusi Aksi
+    function components:AddButton(title, callback)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, 0, 0, 36)
+        btn.BackgroundColor3 = C_CARD
+        btn.Text = title
+        btn.TextColor3 = C_WHITE
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 12
+        btn.Parent = pageScroll
+        addCorner(btn, 8)
+
+        btn.Activated:Connect(function()
+            TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = C_ACCENT}):Play()
+            task.delay(0.15, function()
+                TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = C_CARD}):Play()
+            end)
+            pcall(callback)
+        end)
+    end
+
+    -- 4. Textbox Input (misal Teleport Nickname)
+    function components:AddInput(placeholder, btnText, callback)
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, 0, 0, 42)
+        card.BackgroundColor3 = C_CARD
+        card.Parent = pageScroll
+        addCorner(card, 8)
+
+        local box = Instance.new("TextBox")
+        box.Size = UDim2.new(1, -95, 0, 28)
+        box.Position = UDim2.new(0, 10, 0.5, -14)
+        box.BackgroundColor3 = C_CARD_SUB
+        box.PlaceholderText = placeholder
+        box.PlaceholderColor3 = C_MUTED
+        box.Text = ""
+        box.TextColor3 = C_WHITE
+        box.Font = Enum.Font.Gotham
+        box.TextSize = 11
+        box.Parent = card
+        addCorner(box, 6)
+
+        local submit = Instance.new("TextButton")
+        submit.Size = UDim2.fromOffset(72, 28)
+        submit.Position = UDim2.new(1, -80, 0.5, -14)
+        submit.BackgroundColor3 = C_ACCENT
+        submit.Text = btnText
+        submit.TextColor3 = C_WHITE
+        submit.Font = Enum.Font.GothamBold
+        submit.TextSize = 11
+        submit.Parent = card
+        addCorner(submit, 6)
+
+        submit.Activated:Connect(function()
+            pcall(callback, box.Text)
+        end)
+    end
+
+    return components
 end
 
 ---
--- CHARACTER HELPERS
+-- FUNGSI LOGIKA DASAR & KARAKTER
 ---
 local function getHum()
     local c = lp.Character
     return c and c:FindFirstChildOfClass("Humanoid")
 end
-
 local function getRoot()
     local c = lp.Character
     return c and c:FindFirstChild("HumanoidRootPart")
 end
 
 ---
--- SPEED & HIGH JUMP
+-- TAB 1: PLAYER & COMBAT
 ---
-local speedOn, jumpOn = false, false
+local tabPlayer = createTab("Player")
+
+-- Hitbox Expander & Visual
+local hitboxOn = false
+local hitboxSize = 15
+local hitboxAlpha = 5
+local hitboxLoop = nil
+local defaultProperties = {}
+
+local function cleanHitboxes()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if defaultProperties[p] and p.Character then
+            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                hrp.Size = defaultProperties[p].Size
+                hrp.Transparency = defaultProperties[p].Transparency
+                hrp.CanCollide = defaultProperties[p].CanCollide
+            end
+            local box = p.Character:FindFirstChild("VK_HitboxAdornment")
+            if box then box:Destroy() end
+        end
+        defaultProperties[p] = nil
+    end
+end
+
+local function applyHitbox()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character then
+            local char = p.Character
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+
+            if hrp and hum and hum.Health > 0 then
+                if not defaultProperties[p] then
+                    defaultProperties[p] = {
+                        Size = hrp.Size,
+                        Transparency = hrp.Transparency,
+                        CanCollide = hrp.CanCollide
+                    }
+                end
+
+                hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+                hrp.CanCollide = false
+                hrp.Transparency = 1
+
+                local box = char:FindFirstChild("VK_HitboxAdornment")
+                if not box then
+                    box = Instance.new("BoxHandleAdornment")
+                    box.Name = "VK_HitboxAdornment"
+                    box.Adornee = hrp
+                    box.AlwaysOnTop = true
+                    box.ZIndex = 5
+                    box.Color3 = C_WHITE
+                    box.Parent = char
+                end
+
+                box.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+                if hitboxAlpha <= 0 then
+                    box.Visible = false
+                    box.Transparency = 1
+                else
+                    box.Visible = true
+                    box.Transparency = math.clamp(1 - (hitboxAlpha / 10) * 0.85, 0.15, 0.9)
+                end
+            end
+        end
+    end
+end
+
+tabPlayer:AddToggle("Hitbox Expander", false, function(on)
+    hitboxOn = on
+    if on then
+        hitboxLoop = RunService.RenderStepped:Connect(applyHitbox)
+    else
+        if hitboxLoop then hitboxLoop:Disconnect(); hitboxLoop = nil end
+        cleanHitboxes()
+    end
+end)
+
+tabPlayer:AddStepper("Hitbox Size", 2, 60, 2, 15, function(v) hitboxSize = v end)
+tabPlayer:AddStepper("Hitbox Transparan (0 = Hilang)", 0, 10, 1, 5, function(v) hitboxAlpha = v end)
+
+-- Teleport By Nickname
+tabPlayer:AddInput("Ketik Nama / Display Player...", "Teleport", function(query)
+    if query == "" then return end
+    query = query:lower()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and (p.Name:lower():find(query) or p.DisplayName:lower():find(query)) then
+            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                local myRoot = getRoot()
+                if myRoot then
+                    myRoot.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+                    return
+                end
+            end
+        end
+    end
+end)
+
+-- Anti-Fling
+local antiFlingConn
+tabPlayer:AddToggle("Anti Fling", false, function(on)
+    if antiFlingConn then antiFlingConn:Disconnect(); antiFlingConn = nil end
+    if on then
+        antiFlingConn = RunService.Stepped:Connect(function()
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= lp and p.Character then
+                    for _, part in ipairs(p.Character:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- ESP Players
+local espOn = false
+local espData = {}
+local function clearESP()
+    for _, d in pairs(espData) do if d.folder then d.folder:Destroy() end end
+    table.clear(espData)
+end
+
+local function updateESP()
+    for p, d in pairs(espData) do
+        if not p.Parent or d.char ~= p.Character then
+            if d.folder then d.folder:Destroy() end
+            espData[p] = nil
+        end
+    end
+    for _, p in ipairs(Players:GetPlayers()) do
+        local char = p.Character
+        if p ~= lp and char and not espData[p] then
+            local f = Instance.new("Folder")
+            f.Name = "ESP_" .. p.Name
+            f.Parent = gui
+
+            local hl = Instance.new("Highlight")
+            hl.Adornee = char
+            hl.FillColor = C_ACCENT
+            hl.FillTransparency = 0.65
+            hl.OutlineColor = C_WHITE
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Parent = f
+
+            local head = char:FindFirstChild("Head")
+            if head then
+                local bb = Instance.new("BillboardGui")
+                bb.Adornee = head
+                bb.AlwaysOnTop = true
+                bb.Size = UDim2.fromOffset(120, 20)
+                bb.StudsOffset = Vector3.new(0, 2.5, 0)
+                bb.Parent = f
+
+                local t = Instance.new("TextLabel")
+                t.Size = UDim2.fromScale(1, 1)
+                t.BackgroundTransparency = 1
+                t.Text = p.DisplayName
+                t.TextColor3 = C_WHITE
+                t.TextStrokeTransparency = 0.2
+                t.Font = Enum.Font.GothamBold
+                t.TextSize = 12
+                t.Parent = bb
+            end
+            espData[p] = { folder = f, char = char }
+        end
+    end
+end
+
+tabPlayer:AddToggle("Player ESP", false, function(on)
+    espOn = on
+    if on then
+        task.spawn(function()
+            while espOn do
+                pcall(updateESP)
+                task.wait(1)
+            end
+        end)
+    else
+        clearESP()
+    end
+end)
+
+---
+-- TAB 2: MOVEMENT
+---
+local tabMovement = createTab("Movement")
+
+local speedOn, speedVal = false, 16
+local jumpOn = false
 
 RunService.Heartbeat:Connect(function()
     local h = getHum()
@@ -333,15 +736,16 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-addToggle("Speed", function(on)
+tabMovement:AddToggle("WalkSpeed", false, function(on)
     speedOn = on
     if not on then
         local h = getHum()
         if h then h.WalkSpeed = 16 end
     end
 end)
+tabMovement:AddStepper("Speed Value", 16, 250, 8, 16, function(v) speedVal = v end)
 
-addToggle("High Jump", function(on)
+tabMovement:AddToggle("High Jump", false, function(on)
     jumpOn = on
     if not on then
         local h = getHum()
@@ -349,9 +753,7 @@ addToggle("High Jump", function(on)
     end
 end)
 
----
--- INFINITE JUMP
----
+-- Inf Jump
 local infJump = false
 UIS.JumpRequest:Connect(function()
     if infJump then
@@ -359,13 +761,11 @@ UIS.JumpRequest:Connect(function()
         if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
     end
 end)
-addToggle("Inf Jump", function(on) infJump = on end)
+tabMovement:AddToggle("Infinite Jump", false, function(on) infJump = on end)
 
----
--- NOCLIP
----
+-- Noclip
 local noclipConn
-addToggle("Noclip", function(on)
+tabMovement:AddToggle("Noclip", false, function(on)
     if noclipConn then noclipConn:Disconnect(); noclipConn = nil end
     if on then
         noclipConn = RunService.Stepped:Connect(function()
@@ -381,10 +781,8 @@ addToggle("Noclip", function(on)
     end
 end)
 
----
--- SMOOTH FLY ENGINE (Interpolasi Halus untuk Android/Touch)
----
-local flyOn, vertical = false, 0
+-- Smooth Mobile Fly
+local flyOn, flySpeed, vertical = false, 50, 0
 local flyBV, flyBG, flyConn
 local currentVel = Vector3.zero
 
@@ -437,8 +835,6 @@ local function startFly()
         end
 
         targetVelocity += Vector3.new(0, vertical * flySpeed, 0)
-
-        -- Smooth Lerp (mengurangi stuttering saat joystick berbelok)
         local smoothFactor = math.clamp(dt * 14, 0.05, 1)
         currentVel = currentVel:Lerp(targetVelocity, smoothFactor)
         flyBV.Velocity = currentVel
@@ -451,10 +847,10 @@ local function startFly()
     end)
 end
 
--- Tombol Kontrol Elevasi Terbang (Mobile Touch)
+-- Mobile Up/Down Pad
 local upDown = Instance.new("Frame")
-upDown.Size = UDim2.fromOffset(48, 102)
-upDown.Position = UDim2.new(1, -66, 0.5, -51)
+upDown.Size = UDim2.fromOffset(48, 106)
+upDown.Position = UDim2.new(1, -66, 0.5, -53)
 upDown.BackgroundTransparency = 1
 upDown.Visible = false
 upDown.Parent = gui
@@ -463,23 +859,23 @@ local function holdBtn(txt, y, dir)
     local b = Instance.new("TextButton")
     b.Size = UDim2.fromOffset(46, 46)
     b.Position = UDim2.fromOffset(0, y)
-    b.BackgroundColor3 = ACCENT
-    b.BackgroundTransparency = 0.25
+    b.BackgroundColor3 = C_ACCENT
+    b.BackgroundTransparency = 0.3
     b.Text = txt
-    b.TextColor3 = WHITE
+    b.TextColor3 = C_WHITE
     b.Font = Enum.Font.GothamBold
-    b.TextSize = 22
+    b.TextSize = 20
     b.Parent = upDown
-    corner(b, 23)
+    addCorner(b, 23)
 
     b.InputBegan:Connect(function(i)
         if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
             vertical = dir
-            local releaseConn
-            releaseConn = i.Changed:Connect(function()
+            local conn
+            conn = i.Changed:Connect(function()
                 if i.UserInputState == Enum.UserInputState.End then
                     if vertical == dir then vertical = 0 end
-                    releaseConn:Disconnect()
+                    conn:Disconnect()
                 end
             end)
         end
@@ -488,193 +884,20 @@ end
 holdBtn("▲", 0, 1)
 holdBtn("▼", 54, -1)
 
-addToggle("Fly", function(on)
+tabMovement:AddToggle("Smooth Fly", false, function(on)
     flyOn = on
     upDown.Visible = on
     vertical = 0
     if on then startFly() else stopFly() end
 end)
-
-lp.CharacterAdded:Connect(function()
-    if flyOn then
-        task.wait(0.8)
-        startFly()
-    end
-end)
+tabMovement:AddStepper("Fly Speed", 10, 250, 10, 50, function(v) flySpeed = v end)
 
 ---
--- FITUR: HITBOX EXPANDER + VISUAL BOX (Enemy/Target Players Only)
+-- TAB 3: VISUALS & WORLD
 ---
-local hitboxOn = false
-local hitboxLoop = nil
-local defaultProperties = {}
+local tabVisuals = createTab("Visuals")
 
-local function cleanHitboxForPlayer(p)
-    if defaultProperties[p] then
-        local char = p.Character
-        if char then
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                hrp.Size = defaultProperties[p].Size or Vector3.new(2, 2, 1)
-                hrp.Transparency = defaultProperties[p].Transparency or 1
-                hrp.CanCollide = defaultProperties[p].CanCollide or false
-            end
-            local box = char:FindFirstChild("VK_HitboxAdornment")
-            if box then box:Destroy() end
-        end
-        defaultProperties[p] = nil
-    end
-end
-
-local function cleanAllHitboxes()
-    for _, p in ipairs(Players:GetPlayers()) do
-        cleanHitboxForPlayer(p)
-    end
-end
-
-local function applyHitbox()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp and p.Character then
-            local char = p.Character
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            local hum = char:FindFirstChildOfClass("Humanoid")
-
-            if hrp and hum and hum.Health > 0 then
-                -- Backup state awal
-                if not defaultProperties[p] then
-                    defaultProperties[p] = {
-                        Size = hrp.Size,
-                        Transparency = hrp.Transparency,
-                        CanCollide = hrp.CanCollide
-                    }
-                end
-
-                -- Ubah ukuran collision box
-                hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
-                hrp.CanCollide = false
-                hrp.Transparency = 1
-
-                -- Visualisasi Kotak Putih
-                local box = char:FindFirstChild("VK_HitboxAdornment")
-                if not box then
-                    box = Instance.new("BoxHandleAdornment")
-                    box.Name = "VK_HitboxAdornment"
-                    box.Adornee = hrp
-                    box.AlwaysOnTop = true
-                    box.ZIndex = 5
-                    box.Color3 = WHITE
-                    box.Parent = char
-                end
-
-                box.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
-
-                -- Kontrol Alpha: Nilai 0 = Hilang (Full Transparan), 1-10 = Solid bertahap
-                if hitboxAlpha <= 0 then
-                    box.Visible = false
-                    box.Transparency = 1
-                else
-                    box.Visible = true
-                    -- Mapping 1 -> 0.85 (tipis), 10 -> 0.15 (jelas)
-                    box.Transparency = math.clamp(1 - (hitboxAlpha / 10) * 0.85, 0.1, 0.9)
-                end
-            end
-        end
-    end
-end
-
-addToggle("Hitbox", function(on)
-    hitboxOn = on
-    if on then
-        hitboxLoop = RunService.RenderStepped:Connect(function()
-            applyHitbox()
-        end)
-    else
-        if hitboxLoop then hitboxLoop:Disconnect(); hitboxLoop = nil end
-        cleanAllHitboxes()
-    end
-end)
-
-Players.PlayerRemoving:Connect(function(p)
-    defaultProperties[p] = nil
-end)
-
----
--- FITUR: ESP (Highlight + Tag Nama)
----
-local espOn = false
-local espData = {}
-
-local function clearESP()
-    for _, d in pairs(espData) do 
-        if d.folder then d.folder:Destroy() end 
-    end
-    table.clear(espData)
-end
-
-local function updateESP()
-    for p, d in pairs(espData) do
-        if not p.Parent or d.char ~= p.Character then
-            if d.folder then d.folder:Destroy() end
-            espData[p] = nil
-        end
-    end
-
-    for _, p in ipairs(Players:GetPlayers()) do
-        local char = p.Character
-        if p ~= lp and char and not espData[p] then
-            local f = Instance.new("Folder")
-            f.Name = "ESP_" .. p.Name
-            f.Parent = gui
-
-            local hl = Instance.new("Highlight")
-            hl.Adornee = char
-            hl.FillColor = ACCENT
-            hl.FillTransparency = 0.65
-            hl.OutlineColor = WHITE
-            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            hl.Parent = f
-
-            local head = char:FindFirstChild("Head")
-            if head then
-                local bb = Instance.new("BillboardGui")
-                bb.Adornee = head
-                bb.AlwaysOnTop = true
-                bb.Size = UDim2.fromOffset(110, 18)
-                bb.StudsOffset = Vector3.new(0, 2.5, 0)
-                bb.Parent = f
-
-                local t = Instance.new("TextLabel")
-                t.Size = UDim2.fromScale(1, 1)
-                t.BackgroundTransparency = 1
-                t.Text = p.DisplayName
-                t.TextColor3 = WHITE
-                t.TextStrokeTransparency = 0.2
-                t.Font = Enum.Font.GothamBold
-                t.TextSize = 12
-                t.Parent = bb
-            end
-            espData[p] = { folder = f, char = char }
-        end
-    end
-end
-
-addToggle("ESP", function(on)
-    espOn = on
-    if on then
-        task.spawn(function()
-            while espOn do
-                pcall(updateESP)
-                task.wait(1)
-            end
-        end)
-    else
-        clearESP()
-    end
-end)
-
----
--- FITUR: FULLBRIGHT
----
+-- Fullbright
 local fbOn = false
 local origLight = {
     Brightness     = Lighting.Brightness,
@@ -696,53 +919,21 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-addToggle("Fullbright", function(on)
+tabVisuals:AddToggle("Fullbright", false, function(on)
     fbOn = on
     if not on then
         for k, v in pairs(origLight) do Lighting[k] = v end
     end
 end)
 
----
--- FITUR: ANTI-AFK
----
-local afkConn
-addToggle("Anti AFK", function(on)
-    if afkConn then afkConn:Disconnect(); afkConn = nil end
-    if on then
-        afkConn = lp.Idled:Connect(function()
-            VirtualUser:CaptureController()
-            VirtualUser:ClickButton2(Vector2.new())
-        end)
-    end
+tabVisuals:AddStepper("Field of View", 60, 120, 5, 70, function(v)
+    local cam = workspace.CurrentCamera
+    if cam then cam.FieldOfView = v end
 end)
 
----
--- FITUR BARU: ANTI-FLING
----
-local antiFlingConn
-addToggle("Anti Fling", function(on)
-    if antiFlingConn then antiFlingConn:Disconnect(); antiFlingConn = nil end
-    if on then
-        antiFlingConn = RunService.Stepped:Connect(function()
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= lp and p.Character then
-                    for _, part in ipairs(p.Character:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.CanCollide = false
-                        end
-                    end
-                end
-            end
-        end)
-    end
-end)
-
----
--- FITUR BARU: CLICK TELEPORT TOOL
----
+-- Click TP Tool
 local tpTool = nil
-addToggle("TP Tool", function(on)
+tabVisuals:AddToggle("Click TP Tool", false, function(on)
     if on then
         if not lp.Backpack:FindFirstChild("Click TP") then
             tpTool = Instance.new("Tool")
@@ -764,25 +955,11 @@ addToggle("TP Tool", function(on)
 end)
 
 ---
--- TOMBOL AKSI
+-- TAB 4: MISC & SETTINGS
 ---
-addAction("Teleport Random", function()
-    local targetList = {}
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            table.insert(targetList, p.Character.HumanoidRootPart)
-        end
-    end
-    if #targetList > 0 then
-        local chosen = targetList[math.random(1, #targetList)]
-        local hrp = getRoot()
-        if hrp then
-            hrp.CFrame = chosen.CFrame * CFrame.new(0, 2, 3)
-        end
-    end
-end)
+local tabMisc = createTab("Misc")
 
-addAction("FPS Boost", function()
+tabMisc:AddButton("FPS Booster (Reduce Lag)", function()
     pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
     Lighting.GlobalShadows = false
     origLight.GlobalShadows = false
@@ -796,14 +973,41 @@ addAction("FPS Boost", function()
     end
 end)
 
-addAction("Reset Char", function()
+local afkConn
+tabMisc:AddToggle("Anti AFK (Prevent Kick)", false, function(on)
+    if afkConn then afkConn:Disconnect(); afkConn = nil end
+    if on then
+        afkConn = lp.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
+    end
+end)
+
+tabMisc:AddButton("Teleport ke Player Acak", function()
+    local list = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            table.insert(list, p.Character.HumanoidRootPart)
+        end
+    end
+    if #list > 0 then
+        local chosen = list[math.random(1, #list)]
+        local hrp = getRoot()
+        if hrp then
+            hrp.CFrame = chosen.CFrame * CFrame.new(0, 2, 3)
+        end
+    end
+end)
+
+tabMisc:AddButton("Reset Karakter", function()
     local h = getHum()
     if h then h.Health = 0 end
 end)
 
-addAction("Rejoin", function()
+tabMisc:AddButton("Rejoin Server", function()
     if #Players:GetPlayers() <= 1 then
-        lp:Kick("\nRejoining server...")
+        lp:Kick("\nRejoining...")
         task.wait()
         TeleportService:Teleport(game.PlaceId, lp)
     else
@@ -812,12 +1016,45 @@ addAction("Rejoin", function()
 end)
 
 ---
--- NOTIFIKASI BOOT
+-- PROSES ANIMASI INTRO BERJALAN
 ---
-pcall(function()
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "Vinz Kazuma Hub",
-        Text = "Loaded. Hitbox & Smooth Fly siap digunakan.",
-        Duration = 3,
+task.spawn(function()
+    task.wait(0.3)
+    -- 1. Logo meluncur dari bawah ke tengah layar
+    local t1 = TweenService:Create(introCenter, TweenInfo.new(0.7, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Position = UDim2.new(0.5, -130, 0.5, -30)
     })
+    t1:Play()
+    t1.Completed:Wait()
+
+    task.wait(0.2)
+    -- 2. Teks "Vinz Kazuma" muncul keluar dari samping logo V
+    local t2 = TweenService:Create(introText, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        TextTransparency = 0,
+        Position = UDim2.new(0, 60, 0.5, -20)
+    })
+    t2:Play()
+    t2.Completed:Wait()
+
+    task.wait(1.1)
+
+    -- 3. Fade out teks
+    TweenService:Create(introText, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        TextTransparency = 1
+    }):Play()
+
+    -- 4. Logo meluncur ke posisi floating button di sebelah kiri layar
+    local t3 = TweenService:Create(introCenter, TweenInfo.new(0.65, Enum.EasingStyle.Quart, Enum.EasingDirection.InOut), {
+        Position = UDim2.new(0, 15, 0.4, 0),
+        Size = UDim2.fromOffset(46, 46)
+    })
+    t3:Play()
+    t3.Completed:Wait()
+
+    -- Hapus layer intro dan tampilkan floating logo interaktif
+    introLayer:Destroy()
+    mainLogo.Visible = true
+
+    -- Tampilkan menu utama dengan animasi pop
+    toggleMenu(true)
 end)

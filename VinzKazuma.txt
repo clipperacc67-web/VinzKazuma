@@ -1,7 +1,7 @@
 --[[
     Vinz Kazuma Hub - Universal Mobile Edition (PART 1/3)
     UI Style: Modern Sidebar & Tabs
-    Includes: Core Engine, Silent Aim Hook, UI Framework, & Topbar / Sidebar
+    Includes: Core Engine, Silent Aim Hook, Dropkick Physics Engine, & UI Framework
 ]]
 
 local Players = game:GetService("Players")
@@ -107,6 +107,81 @@ local function getRoot()
 end
 
 ---
+-- FITUR: FE DROPKICK (FLING KICK SEPERTI DI VIDEO)
+---
+local dropkickActive = false
+local function executeDropkick()
+    if dropkickActive then return end
+    local hum = getHum()
+    local hrp = getRoot()
+    local char = lp.Character
+    if not hum or not hrp or hum.Health <= 0 then return end
+
+    dropkickActive = true
+
+    local cam = workspace.CurrentCamera
+    local look = cam and cam.CFrame.LookVector or hrp.CFrame.LookVector
+    local moveDir = Vector3.new(look.X, 0, look.Z).Unit
+    if moveDir.Magnitude < 0.1 then
+        moveDir = hrp.CFrame.LookVector
+    end
+
+    -- Animasi tendangan (R6 / R15)
+    local animTrack = nil
+    pcall(function()
+        local animId = "rbxassetid://303376356"
+        local anim = Instance.new("Animation")
+        anim.AnimationId = animId
+        animTrack = hum:LoadAnimation(anim)
+        animTrack.Priority = Enum.AnimationPriority.Action
+        animTrack:Play(0.05, 1, 1.6)
+    end)
+
+    -- Dorongan meluncur horizontal ke depan
+    local bv = Instance.new("BodyVelocity")
+    bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+    bv.Velocity = (moveDir * 85) + Vector3.new(0, 18, 0)
+    bv.Parent = hrp
+
+    -- Rotasi horizontal tubuh dropkick
+    local bg = Instance.new("BodyGyro")
+    bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+    bg.P = 60000
+    bg.D = 400
+    bg.CFrame = CFrame.new(hrp.Position, hrp.Position + moveDir) * CFrame.Angles(math.rad(-80), 0, 0)
+    bg.Parent = hrp
+
+    -- Fling loop pada pemain lain yang tertabrak
+    local flingConn = nil
+    flingConn = RunService.Heartbeat:Connect(function()
+        if not dropkickActive or not hrp.Parent then return end
+        hrp.AssemblyAngularVelocity = Vector3.new(0, 85000, 0)
+
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= lp and p.Character then
+                local eRoot = p.Character:FindFirstChild("HumanoidRootPart")
+                if eRoot and (eRoot.Position - hrp.Position).Magnitude < 8.5 then
+                    eRoot.AssemblyLinearVelocity = (moveDir * 380) + Vector3.new(0, 220, 0)
+                    eRoot.AssemblyAngularVelocity = Vector3.new(math.random(-8000, 8000), math.random(10000, 20000), math.random(-8000, 8000))
+                end
+            end
+        end
+    end)
+
+    task.wait(0.85)
+
+    if flingConn then flingConn:Disconnect() end
+    if bv then bv:Destroy() end
+    if bg then bg:Destroy() end
+    if animTrack then animTrack:Stop(0.15); animTrack:Destroy() end
+
+    hrp.AssemblyAngularVelocity = Vector3.zero
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+    dropkickActive = false
+end
+
+---
 -- SILENT AIM ENGINE (METAMETHOD HOOK)
 ---
 local silentAimOn = false
@@ -179,7 +254,7 @@ pcall(function()
 end)
 
 ---
--- INTRO ANIMATION & FLOATING BUTTON
+-- INTRO ANIMATION & FLOATING BUTTONS
 ---
 local introLayer = Instance.new("Frame")
 introLayer.Name = "IntroLayer"
@@ -232,6 +307,23 @@ mainLogo.AutoButtonColor = false
 mainLogo.Parent = gui
 addCorner(mainLogo, 23)
 addStroke(mainLogo, C_ACCENT, 1.8)
+
+-- Tombol Dropkick Cepat di Layar (Bisa Digeser)
+local kickBtn = Instance.new("TextButton")
+kickBtn.Name = "QuickDropkickBtn"
+kickBtn.Size = UDim2.fromOffset(50, 50)
+kickBtn.Position = UDim2.new(1, -70, 0.65, 0)
+kickBtn.BackgroundColor3 = C_ACCENT
+kickBtn.Text = "🦵"
+kickBtn.TextSize = 24
+kickBtn.Visible = true
+kickBtn.AutoButtonColor = false
+kickBtn.Parent = gui
+addCorner(kickBtn, 25)
+addStroke(kickBtn, C_WHITE, 1.5)
+makeDraggable(kickBtn, kickBtn, function()
+    executeDropkick()
+end)
 
 ---
 -- MAIN WINDOW FRAME & SIDEBAR
@@ -583,6 +675,15 @@ end
 ---
 local tabPlayer = createTab("Player")
 
+-- Dropkick Execution & Settings
+tabPlayer:AddButton("Eksekusi FE Dropkick", function()
+    executeDropkick()
+end)
+
+tabPlayer:AddToggle("Tombol Dropkick di Layar", true, function(on)
+    kickBtn.Visible = on
+end)
+
 -- 1. Auto Aim via Kamera (Aim Lock)
 local camAimOn = false
 local camAimConn = nil
@@ -885,7 +986,7 @@ tabMovement:AddToggle("Noclip", false, function(on)
     end
 end)
 
--- Ultra Smooth Mobile Fly 3D (Mengikuti Arah Kamera 3D Penuh, Tanpa Tombol Naik/Turun)
+-- Ultra Smooth Mobile Fly 3D (Mengikuti Arah Kamera 3D Penuh)
 local flyOn, flySpeed = false, 50
 local flyBV, flyBG, flyConn
 local currentVel = Vector3.zero
@@ -933,7 +1034,6 @@ local function startFly()
                 local forwardPush = md:Dot(flatLook.Unit)
                 local strafePush  = md:Dot(flatRight.Unit)
 
-                -- Terbang 3D: Arah hadap kamera atas/bawah otomatis membawa terbang naik/turun
                 local moveVec = (cam.CFrame.LookVector * forwardPush) + (cam.CFrame.RightVector * strafePush)
                 if moveVec.Magnitude > 0.05 then
                     targetVelocity = moveVec.Unit * flySpeed
@@ -1000,7 +1100,6 @@ local function isInAnalogDeadzone(pos)
     local cam = workspace.CurrentCamera
     if not cam then return false end
     local viewport = cam.ViewportSize
-    -- Zona analog mobile: sisi kiri bawah (lebar < 45% dan tinggi > 40%)
     return pos.X < viewport.X * 0.45 and pos.Y > viewport.Y * 0.40
 end
 
@@ -1020,7 +1119,6 @@ tabVisuals:AddToggle("Freecam (Analog & Touch)", false, function(on)
 
         cam.CameraType = Enum.CameraType.Scriptable
 
-        -- Usapan layar memutar sudut kamera (Sentuhan di zona analog diabaikan)
         freecamTouchConn = UIS.InputChanged:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
                 if input.UserInputType == Enum.UserInputType.Touch and isInAnalogDeadzone(input.Position) then
@@ -1032,7 +1130,6 @@ tabVisuals:AddToggle("Freecam (Analog & Touch)", false, function(on)
             end
         end)
 
-        -- Analog bawaan menggerakkan posisi kamera
         freecamConn = RunService.RenderStepped:Connect(function(dt)
             if freecamOn then
                 local currentRot = CFrame.Angles(0, freecamYaw, 0) * CFrame.Angles(freecamPitch, 0, 0)
@@ -1204,7 +1301,7 @@ tabMisc:AddButton("Change Lower Server (Sepi)", function()
     serverHop(true)
 end)
 
--- Anti AFK (Auto ON Sejak Awal)
+-- Anti AFK (Auto On)
 local afkConn = nil
 local function startAntiAFK()
     if not afkConn then

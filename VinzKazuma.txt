@@ -1,7 +1,7 @@
 --[[
-    Vinz Kazuma Hub - Universal Mobile Edition (PART 1)
-    UI Style: Modern Sidebar & Tabs (Inspired by Codium/Rayfield)
-    Includes: Cinematic Loading, Window Framework, Profile, & Tab Player / Combat
+    Vinz Kazuma Hub - Universal Mobile Edition (PART 1/3)
+    UI Style: Modern Sidebar & Tabs
+    Includes: Core Engine, Metamethod Silent Aim Hook, UI Framework, & Navigation
 ]]
 
 local Players = game:GetService("Players")
@@ -94,7 +94,94 @@ local function makeDraggable(handle, target, onClick)
 end
 
 ---
--- INTRO / CINEMATIC LOADING ANIMATION
+-- CHARACTER HELPERS
+---
+local function getHum()
+    local c = lp.Character
+    return c and c:FindFirstChildOfClass("Humanoid")
+end
+local function getRoot()
+    local c = lp.Character
+    return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+---
+-- SILENT AIM ENGINE (HOOKING METAMETHOD TANPA GERAK KAMERA)
+---
+local silentAimOn = false
+
+local function getClosestEnemyTarget()
+    local closest, minDist = nil, math.huge
+    local myRoot = getRoot()
+    if not myRoot then return nil end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and p.Character then
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            local head = p.Character:FindFirstChild("Head")
+            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+            if hum and hum.Health > 0 and (head or hrp) then
+                local targetPart = head or hrp
+                local dist = (targetPart.Position - myRoot.Position).Magnitude
+                if dist < minDist then
+                    minDist = dist
+                    closest = targetPart
+                end
+            end
+        end
+    end
+    return closest
+end
+
+pcall(function()
+    local gmt = getrawmetatable and getrawmetatable(game)
+    if gmt and setreadonly then
+        setreadonly(gmt, false)
+        local oldIndex = gmt.__index
+        local oldNamecall = gmt.__namecall
+
+        gmt.__index = newcclosure(function(t, k)
+            if silentAimOn and not checkcaller() and t:IsA("Mouse") and (k == "Hit" or k == "Target") then
+                local target = getClosestEnemyTarget()
+                if target then
+                    if k == "Hit" then
+                        return target.CFrame
+                    elseif k == "Target" then
+                        return target
+                    end
+                end
+            end
+            return oldIndex(t, k)
+        end)
+
+        gmt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            local args = {...}
+            if silentAimOn and not checkcaller() then
+                if method == "Raycast" and self == workspace then
+                    local target = getClosestEnemyTarget()
+                    if target then
+                        local origin = args[1]
+                        args[2] = (target.Position - origin).Unit * 1000
+                        return oldNamecall(self, unpack(args))
+                    end
+                elseif (method == "FindPartOnRay" or method == "FindPartOnRayWithWhitelist" or method == "FindPartOnRayWithIgnoreList") and self == workspace then
+                    local target = getClosestEnemyTarget()
+                    if target and typeof(args[1]) == "Ray" then
+                        local origin = args[1].Origin
+                        args[1] = Ray.new(origin, (target.Position - origin).Unit * 1000)
+                        return oldNamecall(self, unpack(args))
+                    end
+                end
+            end
+            return oldNamecall(self, ...)
+        end)
+        setreadonly(gmt, true)
+    end
+end)
+
+---
+-- INTRO ANIMATION & FLOATING BUTTON
 ---
 local introLayer = Instance.new("Frame")
 introLayer.Name = "IntroLayer"
@@ -133,9 +220,6 @@ introText.TextXAlignment = Enum.TextXAlignment.Left
 introText.TextTransparency = 1
 introText.Parent = introCenter
 
----
--- FLOATING TOGGLE LOGO
----
 local mainLogo = Instance.new("TextButton")
 mainLogo.Name = "FloatingLogo"
 mainLogo.Size = UDim2.fromOffset(46, 46)
@@ -152,7 +236,7 @@ addCorner(mainLogo, 23)
 addStroke(mainLogo, C_ACCENT, 1.8)
 
 ---
--- MAIN WINDOW FRAME
+-- MAIN WINDOW FRAME & SIDEBAR
 ---
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
@@ -169,7 +253,6 @@ local mainScale = Instance.new("UIScale")
 mainScale.Scale = 1
 mainScale.Parent = mainFrame
 
--- Topbar
 local topBar = Instance.new("Frame")
 topBar.Size = UDim2.new(1, 0, 0, 36)
 topBar.BackgroundColor3 = C_SIDEBAR
@@ -198,7 +281,6 @@ closeBtn.TextSize = 12
 closeBtn.Parent = topBar
 addCorner(closeBtn, 6)
 
--- Sidebar
 local sidebar = Instance.new("Frame")
 sidebar.Size = UDim2.new(0, 140, 1, -36)
 sidebar.Position = UDim2.new(0, 0, 0, 36)
@@ -224,7 +306,6 @@ tabPadding.PaddingLeft = UDim.new(0, 8)
 tabPadding.PaddingRight = UDim.new(0, 8)
 tabPadding.Parent = tabContainer
 
--- Profile Footer
 local userProfile = Instance.new("Frame")
 userProfile.Size = UDim2.new(1, 0, 0, 48)
 userProfile.Position = UDim2.new(0, 0, 1, -48)
@@ -263,7 +344,6 @@ userRole.TextSize = 10
 userRole.TextXAlignment = Enum.TextXAlignment.Left
 userRole.Parent = userProfile
 
--- Pages Frame
 local pages = Instance.new("Frame")
 pages.Size = UDim2.new(1, -148, 1, -44)
 pages.Position = UDim2.new(0, 144, 0, 40)
@@ -286,17 +366,12 @@ local function toggleMenu(visible)
     end
 end
 
-closeBtn.Activated:Connect(function()
-    toggleMenu(false)
-end)
-
+closeBtn.Activated:Connect(function() toggleMenu(false) end)
 makeDraggable(topBar, mainFrame)
-makeDraggable(mainLogo, mainLogo, function()
-    toggleMenu(not mainFrame.Visible)
-end)
+makeDraggable(mainLogo, mainLogo, function() toggleMenu(not mainFrame.Visible) end)
 
 ---
--- SISTEM TAB BUILDER
+-- SISTEM TAB BUILDER & UI HELPERS (PART 2/3)
 ---
 local tabs = {}
 local activeTab = nil
@@ -506,69 +581,18 @@ local function createTab(tabName)
 end
 
 ---
--- CHARACTER HELPERS
----
-local function getHum()
-    local c = lp.Character
-    return c and c:FindFirstChildOfClass("Humanoid")
-end
-local function getRoot()
-    local c = lp.Character
-    return c and c:FindFirstChild("HumanoidRootPart")
-end
-
----
 -- TAB 1: PLAYER & COMBAT
 ---
 local tabPlayer = createTab("Player")
 
--- Aimbot (Target Terdekat)
-local aimbotOn = false
-local aimbotConn = nil
-
-local function getClosestPlayer()
-    local closest, minDist = nil, math.huge
-    local myRoot = getRoot()
-    if not myRoot then return nil end
-
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp and p.Character then
-            local hum = p.Character:FindFirstChildOfClass("Humanoid")
-            local head = p.Character:FindFirstChild("Head")
-            local hrp = p.Character:FindFirstChild("HumanoidRootPart")
-            if hum and hum.Health > 0 and (head or hrp) then
-                local targetPart = head or hrp
-                local dist = (targetPart.Position - myRoot.Position).Magnitude
-                if dist < minDist then
-                    minDist = dist
-                    closest = targetPart
-                end
-            end
-        end
-    end
-    return closest
-end
-
-tabPlayer:AddToggle("Auto Aim (Closest Player)", false, function(on)
-    aimbotOn = on
-    if on then
-        aimbotConn = RunService.RenderStepped:Connect(function()
-            local target = getClosestPlayer()
-            local cam = workspace.CurrentCamera
-            if target and cam then
-                local targetCF = CFrame.new(cam.CFrame.Position, target.Position)
-                cam.CFrame = cam.CFrame:Lerp(targetCF, 0.28)
-            end
-        end)
-    else
-        if aimbotConn then aimbotConn:Disconnect(); aimbotConn = nil end
-    end
+tabPlayer:AddToggle("Silent Auto Aim (Peluru)", false, function(on)
+    silentAimOn = on
 end)
 
--- Hitbox Expander & Visual Box (Mulai dari 0)
+-- Hitbox Expander & Box Visual (Mulai dari 0)
 local hitboxOn = false
 local hitboxSize = 15
-local hitboxAlpha = 0 -- Dimulai dari 0 (Invisible total)
+local hitboxAlpha = 0
 local hitboxLoop = nil
 local defaultProperties = {}
 
@@ -750,7 +774,7 @@ tabPlayer:AddToggle("Player ESP", false, function(on)
 end)
 
 ---
--- TAB 2: MOVEMENT
+-- TAB 2: MOVEMENT (PART 3/3)
 ---
 local tabMovement = createTab("Movement")
 
@@ -950,76 +974,58 @@ tabVisuals:AddToggle("Freeze Camera (Statis)", false, function(on)
     end
 end)
 
--- Free Camera (Cinematic Freecam untuk Mobile)
+-- Free Camera Mobile (Analog & Touch Geser Layar)
 local freecamOn = false
 local freecamConn = nil
-local freecamCF = nil
-local freecamMove = Vector3.zero
+local freecamTouchConn = nil
+local freecamPos = Vector3.zero
+local freecamYaw, freecamPitch = 0, 0
+local freecamSpeed = 45
 
-local freecamPad = Instance.new("Frame")
-freecamPad.Size = UDim2.fromOffset(130, 90)
-freecamPad.Position = UDim2.new(1, -145, 0.72, 0)
-freecamPad.BackgroundTransparency = 1
-freecamPad.Visible = false
-freecamPad.Parent = gui
-
-local function makeFcBtn(txt, pos, dir)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.fromOffset(38, 26)
-    b.Position = pos
-    b.BackgroundColor3 = C_CARD
-    b.BackgroundTransparency = 0.2
-    b.Text = txt
-    b.TextColor3 = C_WHITE
-    b.Font = Enum.Font.GothamBold
-    b.TextSize = 12
-    b.Parent = freecamPad
-    addCorner(b, 6)
-
-    b.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
-            freecamMove = freecamMove + dir
-            local conn
-            conn = i.Changed:Connect(function()
-                if i.UserInputState == Enum.UserInputState.End then
-                    freecamMove = freecamMove - dir
-                    conn:Disconnect()
-                end
-            end)
-        end
-    end)
-end
-
-makeFcBtn("Fwd", UDim2.new(0, 46, 0, 0), Vector3.new(0, 0, -1))
-makeFcBtn("Back", UDim2.new(0, 46, 0, 32), Vector3.new(0, 0, 1))
-makeFcBtn("Left", UDim2.new(0, 4, 0, 32), Vector3.new(-1, 0, 0))
-makeFcBtn("Right", UDim2.new(0, 88, 0, 32), Vector3.new(1, 0, 0))
-makeFcBtn("Up", UDim2.new(0, 4, 0, 62), Vector3.new(0, 1, 0))
-makeFcBtn("Down", UDim2.new(0, 88, 0, 62), Vector3.new(0, -1, 0))
-
-tabVisuals:AddToggle("Free Camera (Cinematic)", false, function(on)
+tabVisuals:AddToggle("Freecam (Analog & Touch)", false, function(on)
     freecamOn = on
-    freecamPad.Visible = on
     local cam = workspace.CurrentCamera
     local hrp = getRoot()
+    local hum = getHum()
     if not cam then return end
 
     if on then
         if hrp then hrp.Anchored = true end
-        freecamCF = cam.CFrame
+        freecamPos = cam.CFrame.Position
+        local rx, ry, _ = cam.CFrame:ToOrientation()
+        freecamPitch = rx
+        freecamYaw = ry
+
         cam.CameraType = Enum.CameraType.Scriptable
+
+        -- Usapan/sentuhan layar mengontrol rotasi sudut kamera
+        freecamTouchConn = UIS.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
+                local delta = input.Delta
+                freecamYaw = freecamYaw - math.rad(delta.X * 0.4)
+                freecamPitch = math.clamp(freecamPitch - math.rad(delta.Y * 0.4), math.rad(-89), math.rad(89))
+            end
+        end)
+
+        -- Analog joystick mengontrol pergerakan maju, mundur, dan samping
         freecamConn = RunService.RenderStepped:Connect(function(dt)
-            if freecamOn and freecamCF then
-                local delta = (freecamCF.RightVector * freecamMove.X + freecamCF.UpVector * freecamMove.Y + freecamCF.LookVector * (-freecamMove.Z))
-                freecamCF = freecamCF + delta * (40 * dt)
-                cam.CFrame = freecamCF
+            if freecamOn then
+                local currentRot = CFrame.Angles(0, freecamYaw, 0) * CFrame.Angles(freecamPitch, 0, 0)
+                local moveDir = hum and hum.MoveDirection or Vector3.zero
+                if moveDir.Magnitude > 0 then
+                    local forwardPush = moveDir:Dot(cam.CFrame.LookVector)
+                    local strafePush  = moveDir:Dot(cam.CFrame.RightVector)
+                    local camMove = (currentRot.LookVector * forwardPush) + (currentRot.RightVector * strafePush)
+                    freecamPos = freecamPos + camMove.Unit * (freecamSpeed * dt)
+                end
+                cam.CFrame = CFrame.new(freecamPos) * currentRot
             end
         end)
     else
         if freecamConn then freecamConn:Disconnect(); freecamConn = nil end
+        if freecamTouchConn then freecamTouchConn:Disconnect(); freecamTouchConn = nil end
         if hrp then hrp.Anchored = false end
         cam.CameraType = Enum.CameraType.Custom
-        local hum = getHum()
         if hum then cam.CameraSubject = hum end
     end
 end)

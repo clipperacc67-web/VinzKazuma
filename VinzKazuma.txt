@@ -1,5 +1,5 @@
 --[[
-    Vinz Kazuma Hub - Universal Mobile Edition (PART 1/5)
+    Vinz Kazuma Hub - Universal Mobile Edition (PART 1/4)
     UI Style: Modern Sidebar & Tabs
     Includes: Core Services, Silent Aim Metamethod Hook, Realtime FPS/Ping Overlay, Intro Animation & Floating Logo
 ]]
@@ -12,8 +12,6 @@ local TeleportService = game:GetService("TeleportService")
 local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
-local SoundService = game:GetService("SoundService")
-local AssetService = game:GetService("AssetService")
 local Stats = game:GetService("Stats")
 local CoreGui = game:GetService("CoreGui")
 
@@ -274,7 +272,7 @@ addCorner(mainLogo, 23)
 addStroke(mainLogo, C_ACCENT, 1.8)
 
 ---
--- MAIN WINDOW FRAME, TAB BUILDER & TAB 1: PLAYER & COMBAT (PART 2/5)
+-- MAIN WINDOW FRAME, TAB BUILDER & TAB 1: PLAYER & COMBAT (PART 2/4)
 ---
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
@@ -643,6 +641,52 @@ tabPlayer:AddToggle("Auto Aim (Via Peluru)", false, function(on)
     silentAimOn = on
 end)
 
+-- Walk Fling (Sentuh Musuh -> Terpental Jauh, Karakter Sendiri Stabil)
+local walkFlingOn = false
+local walkFlingConn = nil
+local function setupWalkFling(on)
+    walkFlingOn = on
+    if walkFlingConn then walkFlingConn:Disconnect(); walkFlingConn = nil end
+
+    local hum = getHum()
+    if hum then
+        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, not on)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, not on)
+    end
+
+    if on then
+        walkFlingConn = RunService.Heartbeat:Connect(function()
+            local hrp = getRoot()
+            local myHum = getHum()
+            if not hrp or not myHum or myHum.Health <= 0 then return end
+
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= lp and p.Character then
+                    local eHrp = p.Character:FindFirstChild("HumanoidRootPart")
+                    local eHum = p.Character:FindFirstChildOfClass("Humanoid")
+                    if eHrp and eHum and eHum.Health > 0 then
+                        local dist = (eHrp.Position - hrp.Position).Magnitude
+                        if dist <= 7.2 then
+                            local pushDir = (eHrp.Position - hrp.Position).Unit
+                            if pushDir.Magnitude < 0.1 then pushDir = hrp.CFrame.LookVector end
+                            eHrp.AssemblyLinearVelocity = (pushDir * 550) + Vector3.new(0, 380, 0)
+                            eHrp.AssemblyAngularVelocity = Vector3.new(
+                                math.random(-80000, 80000),
+                                math.random(100000, 150000),
+                                math.random(-80000, 80000)
+                            )
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end
+
+tabPlayer:AddToggle("Walk Fling (Sentuh Mental)", false, function(on)
+    setupWalkFling(on)
+end)
+
 local immuneOn = false
 local immuneConn = nil
 local function setupImmune()
@@ -669,10 +713,9 @@ tabPlayer:AddToggle("Immune / Kebal (Instant HP)", false, function(on)
 end)
 
 lp.CharacterAdded:Connect(function()
-    if immuneOn then
-        task.wait(0.5)
-        setupImmune()
-    end
+    task.wait(0.5)
+    if immuneOn then setupImmune() end
+    if walkFlingOn then setupWalkFling(true) end
 end)
 
 local noFallOn = false
@@ -930,7 +973,7 @@ tabPlayer:AddToggle("Player ESP + Distance", false, function(on)
 end)
 
 ---
--- TAB 2: MOVEMENT & TAB 3: CAMERA & VISUALS (PART 3/5)
+-- TAB 2: MOVEMENT & TAB 3: CAMERA & VISUALS (PART 3/4)
 ---
 local tabMovement = createTab("Movement")
 
@@ -1034,8 +1077,8 @@ tabMovement:AddToggle("Walk on Water (Jesus)", false, function(on)
     end
 end)
 
--- Ultra Smooth Mobile Fly 3D (Freeze Pose & Lock Hadap Kamera)
-local flyOn, flySpeed = false, 50
+-- Ultra Smooth Mobile Fly 3D (Freeze Pose + Cam Lock)
+local flyOn, flyFlingOn, flySpeed = false, false, 50
 local flyBV, flyBG, flyConn
 local currentVel = Vector3.zero
 
@@ -1054,9 +1097,7 @@ local function stopFly()
     end
     if char then
         local animScript = char:FindFirstChild("Animate")
-        if animScript then
-            animScript.Enabled = true
-        end
+        if animScript then animScript.Enabled = true end
     end
 end
 
@@ -1067,9 +1108,7 @@ local function startFly()
     if not hrp or not hum or not char then return end
 
     local animScript = char:FindFirstChild("Animate")
-    if animScript then
-        animScript.Enabled = false
-    end
+    if animScript then animScript.Enabled = false end
     for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
         track:Stop(0.05)
     end
@@ -1115,6 +1154,29 @@ local function startFly()
         flyBV.Velocity = currentVel
 
         flyBG.CFrame = flyBG.CFrame:Lerp(CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector), smoothFactor)
+
+        -- Mekanisme Fling saat Fly Fling Aktif
+        if flyFlingOn then
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= lp and p.Character then
+                    local eHrp = p.Character:FindFirstChild("HumanoidRootPart")
+                    local eHum = p.Character:FindFirstChildOfClass("Humanoid")
+                    if eHrp and eHum and eHum.Health > 0 then
+                        local dist = (eHrp.Position - hrp.Position).Magnitude
+                        if dist <= 8.5 then
+                            local launchDir = (eHrp.Position - hrp.Position).Unit
+                            if launchDir.Magnitude < 0.1 then launchDir = cam.CFrame.LookVector end
+                            eHrp.AssemblyLinearVelocity = (launchDir * 600) + Vector3.new(0, 420, 0)
+                            eHrp.AssemblyAngularVelocity = Vector3.new(
+                                math.random(-90000, 90000),
+                                math.random(120000, 180000),
+                                math.random(-90000, 90000)
+                            )
+                        end
+                    end
+                end
+            end
+        end
     end)
 end
 
@@ -1122,6 +1184,15 @@ tabMovement:AddToggle("Smooth Fly (Freeze & Cam Lock)", false, function(on)
     flyOn = on
     if on then startFly() else stopFly() end
 end)
+
+tabMovement:AddToggle("Fly Fling (Tabrak Mental)", false, function(on)
+    flyFlingOn = on
+    if on and not flyOn then
+        flyOn = true
+        startFly()
+    end
+end)
+
 tabMovement:AddStepper("Fly Speed", 10, 250, 10, 50, function(v) flySpeed = v end)
 
 ---
@@ -1339,7 +1410,7 @@ tabVisuals:AddToggle("Click TP Tool", false, function(on)
 end)
 
 ---
--- TAB 4: AUTO CLICKER & TAB 5: MUSIC PLAYER DENGAN SOUND AKTIF (PART 4/5)
+-- TAB 4: AUTO CLICKER, TAB 5: MISC & SERVER, BOOT ANIMATION (PART 4/4)
 ---
 local tabClicker = createTab("Clicker")
 
@@ -1432,355 +1503,7 @@ task.spawn(function()
 end)
 
 ---
--- TAB 5: MUSIC PLAYER (100% SOUND AKTIF & VERIFIKASI RESMI ROBLOX)
----
-local tabMusic = createTab("Music")
-
-if _G.VinzMusicSound then pcall(function() _G.VinzMusicSound:Destroy() end) end
-
-local musicSound = Instance.new("Sound")
-musicSound.Name = "VinzMusicPlayer"
-musicSound.Volume = 0.5
-musicSound.Looped = false
-musicSound.Parent = SoundService
-_G.VinzMusicSound = musicSound
-
--- Audio ID Resmi Roblox (Tidak Akan Dibisukan Hak Cipta)
-local DEFAULT_PLAYLIST = {
-    {name = "Monstercat - Crab Rave", id = "5410086218"},
-    {name = "Roblox Classic OST - Crossroads", id = "1837849285"},
-    {name = "Chill Lo-Fi Beat", id = "9048375035"},
-    {name = "Epic Action Battle BGM", id = "1843404009"},
-    {name = "Cyberpunk Phonk Beat", id = "7081701387"},
-    {name = "Tokyo Fast Night BGM", id = "6798031589"},
-    {name = "Sad Emotional Piano", id = "1839843632"},
-    {name = "Retro 80s Synthwave", id = "1845554017"},
-}
-
-local currentPlaylist = {}
-for i, v in ipairs(DEFAULT_PLAYLIST) do currentPlaylist[i] = v end
-local currentSong = nil
-local currentIndex = 0
-local isPlaying = false
-
-local musPage = tabMusic.Page
-
-local npCard = Instance.new("Frame")
-npCard.Size = UDim2.new(1, 0, 0, 34)
-npCard.BackgroundColor3 = C_CARD
-npCard.Parent = musPage
-addCorner(npCard, 8)
-
-local nowPlayingLabel = Instance.new("TextLabel")
-nowPlayingLabel.Size = UDim2.new(1, -16, 1, 0)
-nowPlayingLabel.Position = UDim2.fromOffset(8, 0)
-nowPlayingLabel.BackgroundTransparency = 1
-nowPlayingLabel.Text = "⏹ Belum ada lagu"
-nowPlayingLabel.TextColor3 = C_WHITE
-nowPlayingLabel.Font = Enum.Font.GothamBold
-nowPlayingLabel.TextSize = 11
-nowPlayingLabel.TextXAlignment = Enum.TextXAlignment.Left
-nowPlayingLabel.TextTruncate = Enum.TextTruncate.AtEnd
-nowPlayingLabel.Parent = npCard
-
-local playSongByData
-local playBtn, stopBtn, prevBtn, nextBtn
-
-playSongByData = function(song)
-    if not song or not song.id then return end
-    currentSong = song
-    
-    musicSound:Stop()
-    musicSound.SoundId = "rbxassetid://" .. tostring(song.id)
-    musicSound.TimePosition = 0
-    musicSound:Play()
-    isPlaying = true
-    
-    if nowPlayingLabel then 
-        nowPlayingLabel.Text = "Memuat: " .. song.name 
-    end
-    if playBtn then playBtn.Text = "⏸" end
-
-    task.spawn(function()
-        task.wait(1.2)
-        if musicSound.TimeLength == 0 and isPlaying then
-            if nowPlayingLabel then 
-                nowPlayingLabel.Text = "❌ Audio Kena Private / Dihapus Roblox" 
-            end
-        else
-            if nowPlayingLabel then 
-                nowPlayingLabel.Text = "▶ " .. song.name 
-            end
-        end
-    end)
-
-    for i, s in ipairs(currentPlaylist) do
-        if s.id == song.id then currentIndex = i; break end
-    end
-end
-
-local function togglePlay()
-    if not currentSong then
-        if #currentPlaylist > 0 then playSongByData(currentPlaylist[1]) end
-        return
-    end
-    if isPlaying then
-        musicSound:Pause()
-        isPlaying = false
-        if playBtn then playBtn.Text = "▶" end
-        if nowPlayingLabel then nowPlayingLabel.Text = "⏸ " .. currentSong.name end
-    else
-        musicSound:Resume()
-        isPlaying = true
-        if playBtn then playBtn.Text = "⏸" end
-        if nowPlayingLabel then nowPlayingLabel.Text = "▶ " .. currentSong.name end
-    end
-end
-
-local function stopSong()
-    musicSound:Stop()
-    isPlaying = false
-    currentSong = nil
-    if playBtn then playBtn.Text = "▶" end
-    if nowPlayingLabel then nowPlayingLabel.Text = "⏹ Belum ada lagu" end
-end
-
-local function nextSong()
-    if #currentPlaylist == 0 then return end
-    currentIndex = currentIndex + 1
-    if currentIndex > #currentPlaylist then currentIndex = 1 end
-    playSongByData(currentPlaylist[currentIndex])
-end
-
-local function prevSong()
-    if #currentPlaylist == 0 then return end
-    currentIndex = currentIndex - 1
-    if currentIndex < 1 then currentIndex = #currentPlaylist end
-    playSongByData(currentPlaylist[currentIndex])
-end
-
-musicSound.Ended:Connect(function() nextSong() end)
-
-local searchCard = Instance.new("Frame")
-searchCard.Size = UDim2.new(1, 0, 0, 42)
-searchCard.BackgroundColor3 = C_CARD
-searchCard.Parent = musPage
-addCorner(searchCard, 8)
-
-local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(1, -95, 0, 28)
-searchBox.Position = UDim2.new(0, 10, 0.5, -14)
-searchBox.BackgroundColor3 = C_CARD_SUB
-searchBox.PlaceholderText = "Cari lagu / masukkan ID..."
-searchBox.PlaceholderColor3 = C_MUTED
-searchBox.Text = ""
-searchBox.TextColor3 = C_WHITE
-searchBox.Font = Enum.Font.Gotham
-searchBox.TextSize = 11
-searchBox.ClearTextOnFocus = false
-searchBox.Parent = searchCard
-addCorner(searchBox, 6)
-
-local searchBtn = Instance.new("TextButton")
-searchBtn.Size = UDim2.fromOffset(72, 28)
-searchBtn.Position = UDim2.new(1, -80, 0.5, -14)
-searchBtn.BackgroundColor3 = C_ACCENT
-searchBtn.Text = "🔍 Cari"
-searchBtn.TextColor3 = C_WHITE
-searchBtn.Font = Enum.Font.GothamBold
-searchBtn.TextSize = 11
-searchBtn.Parent = searchCard
-addCorner(searchBtn, 6)
-
-local ctrlRow = Instance.new("Frame")
-ctrlRow.Size = UDim2.new(1, 0, 0, 36)
-ctrlRow.BackgroundTransparency = 1
-ctrlRow.Parent = musPage
-
-local function makeCtrl(text, xpos, color)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(0.235, -3, 1, 0)
-    b.Position = UDim2.new(xpos, 0, 0, 0)
-    b.BackgroundColor3 = color
-    b.Text = text
-    b.TextColor3 = C_WHITE
-    b.Font = Enum.Font.GothamBold
-    b.TextSize = 15
-    b.Parent = ctrlRow
-    addCorner(b, 6)
-    return b
-end
-
-prevBtn = makeCtrl("⏮", 0, C_CARD)
-playBtn = makeCtrl("▶", 0.255, Color3.fromRGB(0, 160, 90))
-stopBtn = makeCtrl("⏹", 0.51, C_DANGER)
-nextBtn = makeCtrl("⏭", 0.765, C_CARD)
-
-playBtn.Activated:Connect(function() pcall(togglePlay) end)
-prevBtn.Activated:Connect(function() pcall(prevSong) end)
-nextBtn.Activated:Connect(function() pcall(nextSong) end)
-stopBtn.Activated:Connect(function() pcall(stopSong) end)
-
-local volCard = Instance.new("Frame")
-volCard.Size = UDim2.new(1, 0, 0, 36)
-volCard.BackgroundColor3 = C_CARD
-volCard.Parent = musPage
-addCorner(volCard, 8)
-
-local volLabel = Instance.new("TextLabel")
-volLabel.Size = UDim2.new(0, 50, 1, 0)
-volLabel.Position = UDim2.fromOffset(10, 0)
-volLabel.BackgroundTransparency = 1
-volLabel.Text = "Volume:"
-volLabel.TextColor3 = C_MUTED
-volLabel.Font = Enum.Font.GothamMedium
-volLabel.TextSize = 11
-volLabel.TextXAlignment = Enum.TextXAlignment.Left
-volLabel.Parent = volCard
-
-local volBar = Instance.new("Frame")
-volBar.Size = UDim2.new(1, -120, 0, 14)
-volBar.Position = UDim2.new(0, 65, 0.5, -7)
-volBar.BackgroundColor3 = C_CARD_SUB
-volBar.Parent = volCard
-addCorner(volBar, 7)
-
-local volFill = Instance.new("Frame")
-volFill.Size = UDim2.new(0.5, 0, 1, 0)
-volFill.BackgroundColor3 = C_ACCENT
-volFill.Parent = volBar
-addCorner(volFill, 7)
-
-local volValue = Instance.new("TextLabel")
-volValue.Size = UDim2.new(0, 45, 1, 0)
-volValue.Position = UDim2.new(1, -48, 0, 0)
-volValue.BackgroundTransparency = 1
-volValue.Text = "50%"
-volValue.TextColor3 = C_WHITE
-volValue.Font = Enum.Font.GothamBold
-volValue.TextSize = 11
-volValue.Parent = volCard
-
-local draggingVol = false
-local function setVolume(percent)
-    percent = math.clamp(percent, 0, 1)
-    musicSound.Volume = percent
-    if volFill then volFill.Size = UDim2.new(percent, 0, 1, 0) end
-    if volValue then volValue.Text = math.floor(percent * 100) .. "%" end
-end
-
-volBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        draggingVol = true
-        local rel = (input.Position.X - volBar.AbsolutePosition.X) / volBar.AbsoluteSize.X
-        setVolume(rel)
-    end
-end)
-
-UIS.InputChanged:Connect(function(input)
-    if draggingVol and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local rel = (input.Position.X - volBar.AbsolutePosition.X) / volBar.AbsoluteSize.X
-        setVolume(rel)
-    end
-end)
-
-UIS.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        draggingVol = false
-    end
-end)
-
-local playlistContainer = Instance.new("Frame")
-playlistContainer.Size = UDim2.new(1, 0, 0, 175)
-playlistContainer.BackgroundColor3 = C_CARD
-playlistContainer.Parent = musPage
-addCorner(playlistContainer, 8)
-
-local playlistScroll = Instance.new("ScrollingFrame")
-playlistScroll.Size = UDim2.new(1, -12, 1, -12)
-playlistScroll.Position = UDim2.fromOffset(6, 6)
-playlistScroll.BackgroundTransparency = 1
-playlistScroll.BorderSizePixel = 0
-playlistScroll.ScrollBarThickness = 2
-playlistScroll.ScrollBarImageColor3 = C_ACCENT
-playlistScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-playlistScroll.Parent = playlistContainer
-
-local pLayout = Instance.new("UIListLayout")
-pLayout.Padding = UDim.new(0, 4)
-pLayout.Parent = playlistScroll
-
-local function renderPlaylist(songs)
-    for _, c in ipairs(playlistScroll:GetChildren()) do
-        if c:IsA("TextButton") then c:Destroy() end
-    end
-    for _, song in ipairs(songs) do
-        local b = Instance.new("TextButton")
-        b.Size = UDim2.new(1, 0, 0, 28)
-        b.BackgroundColor3 = C_CARD_SUB
-        b.Text = "  🎵 " .. song.name
-        b.TextColor3 = C_WHITE
-        b.Font = Enum.Font.GothamMedium
-        b.TextSize = 11
-        b.TextXAlignment = Enum.TextXAlignment.Left
-        b.TextTruncate = Enum.TextTruncate.AtEnd
-        b.Parent = playlistScroll
-        addCorner(b, 6)
-        b.Activated:Connect(function()
-            playSongByData(song)
-        end)
-    end
-end
-
-local function doSearch(query)
-    query = (query or ""):gsub("^%s+", ""):gsub("%s+$", "")
-    if query == "" then
-        currentPlaylist = {}
-        for i, v in ipairs(DEFAULT_PLAYLIST) do currentPlaylist[i] = v end
-        renderPlaylist(currentPlaylist)
-        return
-    end
-
-    local idOnly = query:gsub("rbxassetid://", "")
-    if idOnly:match("^%d+$") then
-        playSongByData({name = "ID: " .. idOnly, id = idOnly})
-        return
-    end
-
-    local ok, result = pcall(function()
-        return AssetService:SearchAudioAsync(query)
-    end)
-    if not ok or not result then return end
-
-    local ok2, pagesObj = pcall(function() return result:GetCurrentPage() end)
-    if not ok2 or not pagesObj then return end
-
-    local found = {}
-    for _, item in ipairs(pagesObj) do
-        if item.id then
-            table.insert(found, {
-                name = (item.name or "Unknown"):sub(1, 40),
-                id = tostring(item.id)
-            })
-        end
-    end
-
-    if #found > 0 then
-        currentPlaylist = found
-        renderPlaylist(found)
-    end
-end
-
-searchBtn.Activated:Connect(function() pcall(doSearch, searchBox.Text) end)
-searchBox.FocusLost:Connect(function(enterPressed)
-    if enterPressed then pcall(doSearch, searchBox.Text) end
-end)
-
-renderPlaylist(currentPlaylist)
-setVolume(0.5)
-
----
--- TAB 6: MISC & SERVER, BOOT ANIMATION & INITIALIZATION (PART 5/5)
+-- TAB 5: MISC & SERVER
 ---
 local tabMisc = createTab("Misc")
 

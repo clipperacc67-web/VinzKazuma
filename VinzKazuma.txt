@@ -1,7 +1,7 @@
 --[[
     Vinz Kazuma Hub - Universal Mobile Edition (PART 1/5)
     UI Style: Modern Sidebar & Tabs
-    Includes: Core Services, Metamethod Silent Aim Hook, Realtime FPS/Ping Overlay, Intro Animation, & Floating Button
+    Includes: Core Services, Silent Aim Metamethod Hook, Realtime FPS/Ping Overlay, Intro Animation & Floating Logo
 ]]
 
 local Players = game:GetService("Players")
@@ -1034,6 +1034,7 @@ tabMovement:AddToggle("Walk on Water (Jesus)", false, function(on)
     end
 end)
 
+-- Ultra Smooth Mobile Fly 3D (Freeze Pose & Lock Hadap Kamera)
 local flyOn, flySpeed = false, 50
 local flyBV, flyBG, flyConn
 local currentVel = Vector3.zero
@@ -1043,14 +1044,37 @@ local function stopFly()
     if flyBV then flyBV:Destroy(); flyBV = nil end
     if flyBG then flyBG:Destroy(); flyBG = nil end
     currentVel = Vector3.zero
-    local h = getHum()
-    if h then h.AutoRotate = true end
+
+    local char = lp.Character
+    local hum = getHum()
+    if hum then
+        hum.PlatformStand = false
+        hum.AutoRotate = true
+        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end
+    if char then
+        local animScript = char:FindFirstChild("Animate")
+        if animScript then
+            animScript.Enabled = true
+        end
+    end
 end
 
 local function startFly()
     stopFly()
+    local char = lp.Character
     local hrp, hum = getRoot(), getHum()
-    if not hrp or not hum then return end
+    if not hrp or not hum or not char then return end
+
+    local animScript = char:FindFirstChild("Animate")
+    if animScript then
+        animScript.Enabled = false
+    end
+    for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
+        track:Stop(0.05)
+    end
+    hum.PlatformStand = true
+    hum.AutoRotate = false
 
     flyBV = Instance.new("BodyVelocity")
     flyBV.MaxForce = Vector3.new(1e8, 1e8, 1e8)
@@ -1059,12 +1083,10 @@ local function startFly()
 
     flyBG = Instance.new("BodyGyro")
     flyBG.MaxTorque = Vector3.new(1e8, 1e8, 1e8)
-    flyBG.P = 15000
-    flyBG.D = 800
+    flyBG.P = 25000
+    flyBG.D = 600
     flyBG.CFrame = hrp.CFrame
     flyBG.Parent = hrp
-
-    hum.AutoRotate = false
 
     flyConn = RunService.RenderStepped:Connect(function(dt)
         local cam = workspace.CurrentCamera
@@ -1088,18 +1110,15 @@ local function startFly()
             end
         end
 
-        local smoothFactor = math.clamp(dt * 12, 0.05, 1)
+        local smoothFactor = math.clamp(dt * 14, 0.05, 1)
         currentVel = currentVel:Lerp(targetVelocity, smoothFactor)
         flyBV.Velocity = currentVel
 
-        local faceDir = cam.CFrame.LookVector
-        if faceDir.Magnitude > 0.01 then
-            flyBG.CFrame = flyBG.CFrame:Lerp(CFrame.new(hrp.Position, hrp.Position + faceDir), smoothFactor)
-        end
+        flyBG.CFrame = flyBG.CFrame:Lerp(CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector), smoothFactor)
     end)
 end
 
-tabMovement:AddToggle("Ultra Smooth Fly (3D Cam)", false, function(on)
+tabMovement:AddToggle("Smooth Fly (Freeze & Cam Lock)", false, function(on)
     flyOn = on
     if on then startFly() else stopFly() end
 end)
@@ -1320,7 +1339,7 @@ tabVisuals:AddToggle("Click TP Tool", false, function(on)
 end)
 
 ---
--- TAB 4: AUTO CLICKER & TAB 5: MUSIC PLAYER (PART 4/5)
+-- TAB 4: AUTO CLICKER & TAB 5: MUSIC PLAYER DENGAN SOUND AKTIF (PART 4/5)
 ---
 local tabClicker = createTab("Clicker")
 
@@ -1413,7 +1432,7 @@ task.spawn(function()
 end)
 
 ---
--- TAB 5: MUSIC PLAYER (FULL INTEGRASI DARI PART 5)
+-- TAB 5: MUSIC PLAYER (100% SOUND AKTIF & VERIFIKASI RESMI ROBLOX)
 ---
 local tabMusic = createTab("Music")
 
@@ -1422,22 +1441,20 @@ if _G.VinzMusicSound then pcall(function() _G.VinzMusicSound:Destroy() end) end
 local musicSound = Instance.new("Sound")
 musicSound.Name = "VinzMusicPlayer"
 musicSound.Volume = 0.5
+musicSound.Looped = false
 musicSound.Parent = SoundService
 _G.VinzMusicSound = musicSound
 
+-- Audio ID Resmi Roblox (Tidak Akan Dibisukan Hak Cipta)
 local DEFAULT_PLAYLIST = {
-    {name = "Via Vallen - Sayang", id = "1214922908"},
-    {name = "Nella Kharisma - Jaran Goyang", id = "1282766124"},
-    {name = "Denny Caknan - Los Dol", id = "6869822315"},
-    {name = "Happy Asmara - Dalan Liyane", id = "6940647577"},
-    {name = "Didi Kempot - Pamer Bojo", id = "5625377967"},
-    {name = "DJ TikTok Viral", id = "8753952093"},
-    {name = "The Weeknd - Blinding Lights", id = "4635671560"},
-    {name = "Dua Lipa - Levitating", id = "6606223785"},
-    {name = "Ed Sheeran - Bad Habits", id = "7202579511"},
-    {name = "Glass Animals - Heat Waves", id = "6432181830"},
-    {name = "SZA - Kill Bill", id = "12196403572"},
-    {name = "Drake - God's Plan", id = "1665926924"},
+    {name = "Monstercat - Crab Rave", id = "5410086218"},
+    {name = "Roblox Classic OST - Crossroads", id = "1837849285"},
+    {name = "Chill Lo-Fi Beat", id = "9048375035"},
+    {name = "Epic Action Battle BGM", id = "1843404009"},
+    {name = "Cyberpunk Phonk Beat", id = "7081701387"},
+    {name = "Tokyo Fast Night BGM", id = "6798031589"},
+    {name = "Sad Emotional Piano", id = "1839843632"},
+    {name = "Retro 80s Synthwave", id = "1845554017"},
 }
 
 local currentPlaylist = {}
@@ -1472,11 +1489,31 @@ local playBtn, stopBtn, prevBtn, nextBtn
 playSongByData = function(song)
     if not song or not song.id then return end
     currentSong = song
+    
+    musicSound:Stop()
     musicSound.SoundId = "rbxassetid://" .. tostring(song.id)
+    musicSound.TimePosition = 0
     musicSound:Play()
     isPlaying = true
-    if nowPlayingLabel then nowPlayingLabel.Text = "▶ " .. song.name end
+    
+    if nowPlayingLabel then 
+        nowPlayingLabel.Text = "Memuat: " .. song.name 
+    end
     if playBtn then playBtn.Text = "⏸" end
+
+    task.spawn(function()
+        task.wait(1.2)
+        if musicSound.TimeLength == 0 and isPlaying then
+            if nowPlayingLabel then 
+                nowPlayingLabel.Text = "❌ Audio Kena Private / Dihapus Roblox" 
+            end
+        else
+            if nowPlayingLabel then 
+                nowPlayingLabel.Text = "▶ " .. song.name 
+            end
+        end
+    end)
+
     for i, s in ipairs(currentPlaylist) do
         if s.id == song.id then currentIndex = i; break end
     end

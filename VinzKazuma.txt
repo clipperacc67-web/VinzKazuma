@@ -641,50 +641,108 @@ tabPlayer:AddToggle("Auto Aim (Via Peluru)", false, function(on)
     silentAimOn = on
 end)
 
--- Walk Fling (Sentuh Musuh -> Terpental Jauh, Karakter Sendiri Stabil)
+-- Walk Fling (Sistem Stabilizer Anti-Mental untuk LocalPlayer)
 local walkFlingOn = false
 local walkFlingConn = nil
-local function setupWalkFling(on)
-    walkFlingOn = on
+local walkFlingBV = nil
+local walkFlingBG = nil
+
+local function stopWalkFling()
+    walkFlingOn = false
     if walkFlingConn then walkFlingConn:Disconnect(); walkFlingConn = nil end
+    if walkFlingBV then walkFlingBV:Destroy(); walkFlingBV = nil end
+    if walkFlingBG then walkFlingBG:Destroy(); walkFlingBG = nil end
 
     local hum = getHum()
+    local hrp = getRoot()
     if hum then
-        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, not on)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, not on)
+        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
     end
-
-    if on then
-        walkFlingConn = RunService.Heartbeat:Connect(function()
-            local hrp = getRoot()
-            local myHum = getHum()
-            if not hrp or not myHum or myHum.Health <= 0 then return end
-
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= lp and p.Character then
-                    local eHrp = p.Character:FindFirstChild("HumanoidRootPart")
-                    local eHum = p.Character:FindFirstChildOfClass("Humanoid")
-                    if eHrp and eHum and eHum.Health > 0 then
-                        local dist = (eHrp.Position - hrp.Position).Magnitude
-                        if dist <= 7.2 then
-                            local pushDir = (eHrp.Position - hrp.Position).Unit
-                            if pushDir.Magnitude < 0.1 then pushDir = hrp.CFrame.LookVector end
-                            eHrp.AssemblyLinearVelocity = (pushDir * 550) + Vector3.new(0, 380, 0)
-                            eHrp.AssemblyAngularVelocity = Vector3.new(
-                                math.random(-80000, 80000),
-                                math.random(100000, 150000),
-                                math.random(-80000, 80000)
-                            )
-                        end
-                    end
-                end
-            end
-        end)
+    if hrp then
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        hrp.AssemblyLinearVelocity = Vector3.zero
     end
 end
 
+local function startWalkFling()
+    stopWalkFling()
+    local hum = getHum()
+    local hrp = getRoot()
+    local char = lp.Character
+    if not hum or not hrp or not char then return end
+
+    walkFlingOn = true
+
+    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+
+    -- Stabilizer penahan badan agar LocalPlayer kebal terpental
+    walkFlingBV = Instance.new("BodyVelocity")
+    walkFlingBV.Name = "VK_WalkFlingStabilizer"
+    walkFlingBV.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+    walkFlingBV.Velocity = Vector3.zero
+    walkFlingBV.Parent = hrp
+
+    walkFlingBG = Instance.new("BodyGyro")
+    walkFlingBG.Name = "VK_WalkFlingGyro"
+    walkFlingBG.MaxTorque = Vector3.new(1e9, 0, 1e9)
+    walkFlingBG.P = 30000
+    walkFlingBG.D = 500
+    walkFlingBG.CFrame = hrp.CFrame
+    walkFlingBG.Parent = hrp
+
+    walkFlingConn = RunService.Heartbeat:Connect(function()
+        if not walkFlingOn or not hrp.Parent or hum.Health <= 0 then
+            stopWalkFling()
+            return
+        end
+
+        local md = hum.MoveDirection
+        local curSpeed = (speedOn and speedVal or 16)
+        if md.Magnitude > 0 then
+            walkFlingBV.Velocity = md * curSpeed
+        else
+            walkFlingBV.Velocity = Vector3.zero
+        end
+
+        local enemyNearby = false
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= lp and p.Character then
+                local eHrp = p.Character:FindFirstChild("HumanoidRootPart")
+                local eHum = p.Character:FindFirstChildOfClass("Humanoid")
+                if eHrp and eHum and eHum.Health > 0 then
+                    local dist = (eHrp.Position - hrp.Position).Magnitude
+                    if dist <= 7.5 then
+                        enemyNearby = true
+                        for _, part in ipairs(char:GetChildren()) do
+                            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                                part.CanCollide = true
+                            end
+                        end
+                        break
+                    end
+                end
+            end
+        end
+
+        if enemyNearby then
+            -- Putaran kinetik ekstrem yang memindahkan momentum ke tubuh musuh
+            hrp.AssemblyAngularVelocity = Vector3.new(0, 300000, 0)
+        else
+            hrp.AssemblyAngularVelocity = Vector3.zero
+        end
+
+        -- Redam gaya liar jika ada tabrakan yang mencoba melempar kita
+        if math.abs(hrp.AssemblyLinearVelocity.Y) > 30 then
+            hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, 0, hrp.AssemblyLinearVelocity.Z)
+        end
+    end)
+end
+
 tabPlayer:AddToggle("Walk Fling (Sentuh Mental)", false, function(on)
-    setupWalkFling(on)
+    if on then startWalkFling() else stopWalkFling() end
 end)
 
 local immuneOn = false
@@ -715,7 +773,7 @@ end)
 lp.CharacterAdded:Connect(function()
     task.wait(0.5)
     if immuneOn then setupImmune() end
-    if walkFlingOn then setupWalkFling(true) end
+    if walkFlingOn then startWalkFling() end
 end)
 
 local noFallOn = false
@@ -1077,7 +1135,7 @@ tabMovement:AddToggle("Walk on Water (Jesus)", false, function(on)
     end
 end)
 
--- Ultra Smooth Mobile Fly 3D (Freeze Pose + Cam Lock)
+-- Ultra Smooth Mobile Fly 3D (Freeze Pose + Cam Lock + Fly Fling)
 local flyOn, flyFlingOn, flySpeed = false, false, 50
 local flyBV, flyBG, flyConn
 local currentVel = Vector3.zero
@@ -1090,6 +1148,8 @@ local function stopFly()
 
     local char = lp.Character
     local hum = getHum()
+    local hrp = getRoot()
+
     if hum then
         hum.PlatformStand = false
         hum.AutoRotate = true
@@ -1098,6 +1158,10 @@ local function stopFly()
     if char then
         local animScript = char:FindFirstChild("Animate")
         if animScript then animScript.Enabled = true end
+    end
+    if hrp then
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        hrp.AssemblyLinearVelocity = Vector3.zero
     end
 end
 
@@ -1115,6 +1179,7 @@ local function startFly()
     hum.PlatformStand = true
     hum.AutoRotate = false
 
+    -- BodyVelocity 1e8 menahan posisi terbang kita sehingga musuh tidak bisa melempar kita
     flyBV = Instance.new("BodyVelocity")
     flyBV.MaxForce = Vector3.new(1e8, 1e8, 1e8)
     flyBV.Velocity = Vector3.zero
@@ -1155,8 +1220,9 @@ local function startFly()
 
         flyBG.CFrame = flyBG.CFrame:Lerp(CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector), smoothFactor)
 
-        -- Mekanisme Fling saat Fly Fling Aktif
+        -- Fly Fling: Tabrak musuh di udara/darat -> Musuh terpental, LocalPlayer tetap stabil di jalur terbang
         if flyFlingOn then
+            local enemyClose = false
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= lp and p.Character then
                     local eHrp = p.Character:FindFirstChild("HumanoidRootPart")
@@ -1164,17 +1230,22 @@ local function startFly()
                     if eHrp and eHum and eHum.Health > 0 then
                         local dist = (eHrp.Position - hrp.Position).Magnitude
                         if dist <= 8.5 then
-                            local launchDir = (eHrp.Position - hrp.Position).Unit
-                            if launchDir.Magnitude < 0.1 then launchDir = cam.CFrame.LookVector end
-                            eHrp.AssemblyLinearVelocity = (launchDir * 600) + Vector3.new(0, 420, 0)
-                            eHrp.AssemblyAngularVelocity = Vector3.new(
-                                math.random(-90000, 90000),
-                                math.random(120000, 180000),
-                                math.random(-90000, 90000)
-                            )
+                            enemyClose = true
+                            for _, part in ipairs(char:GetChildren()) do
+                                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                                    part.CanCollide = true
+                                end
+                            end
+                            break
                         end
                     end
                 end
+            end
+
+            if enemyClose then
+                hrp.AssemblyAngularVelocity = Vector3.new(0, 350000, 0)
+            else
+                hrp.AssemblyAngularVelocity = Vector3.zero
             end
         end
     end)

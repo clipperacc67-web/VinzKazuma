@@ -1,7 +1,7 @@
 --[[
-    Vinz Kazuma Hub - Universal Mobile Edition (PART 1/4)
+    Vinz Kazuma Hub - Universal Mobile Edition (PART 1/5)
     UI Style: Modern Sidebar & Tabs
-    Includes: Core Services, FPS/Ping Overlay, Silent Aim Metamethod Hook, & Main Window Frame
+    Includes: Core Services, Metamethod Silent Aim Hook, Realtime FPS/Ping Overlay, Intro Animation, & Floating Button
 ]]
 
 local Players = game:GetService("Players")
@@ -13,6 +13,7 @@ local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local SoundService = game:GetService("SoundService")
+local AssetService = game:GetService("AssetService")
 local Stats = game:GetService("Stats")
 local CoreGui = game:GetService("CoreGui")
 
@@ -273,7 +274,7 @@ addCorner(mainLogo, 23)
 addStroke(mainLogo, C_ACCENT, 1.8)
 
 ---
--- MAIN WINDOW FRAME & SIDEBAR
+-- MAIN WINDOW FRAME, TAB BUILDER & TAB 1: PLAYER & COMBAT (PART 2/5)
 ---
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
@@ -408,9 +409,6 @@ closeBtn.Activated:Connect(function() toggleMenu(false) end)
 makeDraggable(topBar, mainFrame)
 makeDraggable(mainLogo, mainLogo, function() toggleMenu(not mainFrame.Visible) end)
 
----
--- SISTEM TAB BUILDER & TAB 1: PLAYER & COMBAT (PART 2/4)
----
 local tabs = {}
 local activeTab = nil
 
@@ -465,7 +463,7 @@ local function createTab(tabName)
 
     if not activeTab then activate() end
 
-    local components = {}
+    local components = { Page = pageScroll }
 
     function components:AddToggle(title, default, callback)
         local card = Instance.new("Frame")
@@ -623,7 +621,6 @@ end
 ---
 local tabPlayer = createTab("Player")
 
--- 1. Auto Aim via Kamera (Aim Lock)
 local camAimOn = false
 local camAimConn = nil
 tabPlayer:AddToggle("Auto Aim (Via Kamera)", false, function(on)
@@ -642,12 +639,10 @@ tabPlayer:AddToggle("Auto Aim (Via Kamera)", false, function(on)
     end
 end)
 
--- 2. Auto Aim via Peluru (Silent Aim)
 tabPlayer:AddToggle("Auto Aim (Via Peluru)", false, function(on)
     silentAimOn = on
 end)
 
--- 3. Fitur Immune / Kebal (Instant Refill Darah)
 local immuneOn = false
 local immuneConn = nil
 local function setupImmune()
@@ -680,7 +675,6 @@ lp.CharacterAdded:Connect(function()
     end
 end)
 
--- 4. No Fall Damage
 local noFallOn = false
 RunService.Heartbeat:Connect(function()
     if noFallOn then
@@ -697,7 +691,6 @@ tabPlayer:AddToggle("No Fall Damage", false, function(on)
     noFallOn = on
 end)
 
--- 5. Hitbox Expander & Box Visual (Mulai dari 0)
 local hitboxOn = false
 local hitboxSize = 15
 local hitboxAlpha = 0
@@ -777,7 +770,56 @@ end)
 tabPlayer:AddStepper("Hitbox Size", 2, 60, 2, 15, function(v) hitboxSize = v end)
 tabPlayer:AddStepper("Hitbox Vis (0=Hilang)", 0, 10, 1, 0, function(v) hitboxAlpha = v end)
 
--- Teleport By Nickname
+local spectateIndex = 1
+local function spectateTarget(p)
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+    if p and p.Character and p.Character:FindFirstChildOfClass("Humanoid") then
+        cam.CameraSubject = p.Character:FindFirstChildOfClass("Humanoid")
+    else
+        local myHum = getHum()
+        if myHum then cam.CameraSubject = myHum end
+    end
+end
+
+tabPlayer:AddInput("Ketik Nama / Display Spectate...", "Spectate", function(query)
+    if query == "" then return end
+    query = query:lower()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and (p.Name:lower():find(query) or p.DisplayName:lower():find(query)) then
+            spectateTarget(p)
+            return
+        end
+    end
+end)
+
+tabPlayer:AddButton("Next Player Spectate (▶)", function()
+    local playerList = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp then table.insert(playerList, p) end
+    end
+    if #playerList > 0 then
+        spectateIndex = (spectateIndex % #playerList) + 1
+        spectateTarget(playerList[spectateIndex])
+    end
+end)
+
+tabPlayer:AddButton("Prev Player Spectate (◀)", function()
+    local playerList = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp then table.insert(playerList, p) end
+    end
+    if #playerList > 0 then
+        spectateIndex = spectateIndex - 1
+        if spectateIndex < 1 then spectateIndex = #playerList end
+        spectateTarget(playerList[spectateIndex])
+    end
+end)
+
+tabPlayer:AddButton("Stop Spectate (Kamera Saya)", function()
+    spectateTarget(lp)
+end)
+
 tabPlayer:AddInput("Ketik Nama / Display Player...", "Teleport", function(query)
     if query == "" then return end
     query = query:lower()
@@ -794,7 +836,6 @@ tabPlayer:AddInput("Ketik Nama / Display Player...", "Teleport", function(query)
     end
 end)
 
--- Anti-Fling
 local antiFlingConn
 tabPlayer:AddToggle("Anti Fling", false, function(on)
     if antiFlingConn then antiFlingConn:Disconnect(); antiFlingConn = nil end
@@ -813,7 +854,6 @@ tabPlayer:AddToggle("Anti Fling", false, function(on)
     end
 end)
 
--- ESP Players + Distance
 local espOn = false
 local espData = {}
 local function clearESP()
@@ -890,7 +930,7 @@ tabPlayer:AddToggle("Player ESP + Distance", false, function(on)
 end)
 
 ---
--- TAB 2: MOVEMENT & TAB 3: CAMERA & VISUALS (PART 3/4)
+-- TAB 2: MOVEMENT & TAB 3: CAMERA & VISUALS (PART 3/5)
 ---
 local tabMovement = createTab("Movement")
 
@@ -950,7 +990,50 @@ tabMovement:AddToggle("Noclip", false, function(on)
     end
 end)
 
--- Ultra Smooth Mobile Fly 3D
+local jesusOn = false
+local waterPlatform = nil
+local jesusConn = nil
+
+tabMovement:AddToggle("Walk on Water (Jesus)", false, function(on)
+    jesusOn = on
+    if on then
+        jesusConn = RunService.Heartbeat:Connect(function()
+            local hrp = getRoot()
+            local hum = getHum()
+            if hrp and hum then
+                if hum:GetState() == Enum.HumanoidStateType.Swimming then
+                    hum:ChangeState(Enum.HumanoidStateType.Running)
+                    hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, 0, hrp.AssemblyLinearVelocity.Z)
+                    hrp.CFrame = hrp.CFrame + Vector3.new(0, 1.4, 0)
+                end
+
+                local ray = Ray.new(hrp.Position, Vector3.new(0, -6, 0))
+                local hit, pos, _, mat = workspace:FindPartOnRay(ray, lp.Character)
+                if mat == Enum.Material.Water or (hit and hit.Name:lower():find("water")) then
+                    if not waterPlatform or not waterPlatform.Parent then
+                        waterPlatform = Instance.new("Part")
+                        waterPlatform.Name = "VK_WaterPlatform"
+                        waterPlatform.Size = Vector3.new(12, 1, 12)
+                        waterPlatform.Transparency = 1
+                        waterPlatform.Anchored = true
+                        waterPlatform.CanCollide = true
+                        waterPlatform.Parent = workspace
+                    end
+                    waterPlatform.CFrame = CFrame.new(hrp.Position.X, pos.Y - 0.4, hrp.Position.Z)
+                else
+                    if waterPlatform then
+                        waterPlatform:Destroy()
+                        waterPlatform = nil
+                    end
+                end
+            end
+        end)
+    else
+        if jesusConn then jesusConn:Disconnect(); jesusConn = nil end
+        if waterPlatform then waterPlatform:Destroy(); waterPlatform = nil end
+    end
+end)
+
 local flyOn, flySpeed = false, 50
 local flyBV, flyBG, flyConn
 local currentVel = Vector3.zero
@@ -1027,7 +1110,6 @@ tabMovement:AddStepper("Fly Speed", 10, 250, 10, 50, function(v) flySpeed = v en
 ---
 local tabVisuals = createTab("Camera")
 
--- Freeze Camera
 local freezeCamOn = false
 local freezeCamCF = nil
 local freezeCamConn = nil
@@ -1052,7 +1134,6 @@ tabVisuals:AddToggle("Freeze Camera (Statis)", false, function(on)
     end
 end)
 
--- Free Camera Mobile (Filter Touch Zona Analog)
 local freecamOn = false
 local freecamConn = nil
 local freecamTouchConn = nil
@@ -1116,7 +1197,30 @@ tabVisuals:AddToggle("Freecam (Analog & Touch)", false, function(on)
     end
 end)
 
--- Grafik HD / RTX Lighting
+local xrayOn = false
+local originalTransparencies = {}
+
+tabVisuals:AddToggle("X-Ray Mode (Tembus Map)", false, function(on)
+    xrayOn = on
+    if on then
+        for _, part in ipairs(workspace:GetDescendants()) do
+            if part:IsA("BasePart") and not part:IsDescendantOf(lp.Character) and not (part.Parent and part.Parent:FindFirstChildOfClass("Humanoid")) then
+                if originalTransparencies[part] == nil then
+                    originalTransparencies[part] = part.Transparency
+                end
+                part.Transparency = math.clamp(part.Transparency + 0.55, 0.55, 0.85)
+            end
+        end
+    else
+        for part, trans in pairs(originalTransparencies) do
+            if part and part.Parent then
+                part.Transparency = trans
+            end
+        end
+        table.clear(originalTransparencies)
+    end
+end)
+
 local hdInstances = {}
 tabVisuals:AddToggle("Grafik HD (RTX Lighting)", false, function(on)
     if on then
@@ -1160,7 +1264,6 @@ tabVisuals:AddToggle("Grafik HD (RTX Lighting)", false, function(on)
     end
 end)
 
--- Fullbright
 local fbOn = false
 local origLight = {
     Brightness     = Lighting.Brightness,
@@ -1194,7 +1297,6 @@ tabVisuals:AddStepper("Field of View", 60, 120, 5, 70, function(v)
     if cam then cam.FieldOfView = v end
 end)
 
--- Click TP Tool
 local tpTool = nil
 tabVisuals:AddToggle("Click TP Tool", false, function(on)
     if on then
@@ -1218,17 +1320,15 @@ tabVisuals:AddToggle("Click TP Tool", false, function(on)
 end)
 
 ---
--- TAB 4: AUTO CLICKER & TAB 5: MISC / MUSIC (PART 4/4)
----
-
----
--- AUTO CLICKER SYSTEM (BULETAN DRAGGABLE & ANTI-KLIK MENU)
+-- TAB 4: AUTO CLICKER & TAB 5: MUSIC PLAYER (PART 4/5)
 ---
 local tabClicker = createTab("Clicker")
 
 local clickerOn = false
-local clickerSpeed = 50 -- ms per click
+local clickerSpeed = 50
 local clickerNodes = {}
+local VIM = nil
+pcall(function() VIM = game:GetService("VirtualInputManager") end)
 
 local function isOverMenu(pos)
     if not mainFrame.Visible then return false end
@@ -1239,13 +1339,11 @@ local function isOverMenu(pos)
 end
 
 local function setNodeCount(count)
-    -- Buang node berlebih
     while #clickerNodes > count do
         local last = table.remove(clickerNodes)
         if last and last.Instance then last.Instance:Destroy() end
     end
 
-    -- Tambah node baru jika kurang
     while #clickerNodes < count do
         local id = #clickerNodes + 1
         local node = Instance.new("Frame")
@@ -1285,7 +1383,6 @@ tabClicker:AddStepper("Kecepatan Klik (ms)", 10, 500, 10, 50, function(v)
     clickerSpeed = v
 end)
 
--- Loop Eksekusi Klik
 task.spawn(function()
     while true do
         if clickerOn and #clickerNodes > 0 then
@@ -1294,8 +1391,14 @@ task.spawn(function()
                 local node = nodeObj.Instance
                 if node and node.Parent then
                     local absPos = node.AbsolutePosition + (node.AbsoluteSize / 2)
-                    -- Proteksi: jangan klik jika posisi buletan berada di dalam Menu GUI
                     if not isOverMenu(absPos) then
+                        if VIM then
+                            pcall(function()
+                                VIM:SendTouchEvent(nodeObj.Id, 0, absPos.X, absPos.Y)
+                                task.wait(0.01)
+                                VIM:SendTouchEvent(nodeObj.Id, 2, absPos.X, absPos.Y)
+                            end)
+                        end
                         VirtualUser:Button1Down(Vector2.new(absPos.X, absPos.Y))
                         task.wait(0.01)
                         VirtualUser:Button1Up(Vector2.new(absPos.X, absPos.Y))
@@ -1310,67 +1413,344 @@ task.spawn(function()
 end)
 
 ---
--- TAB 5: MISC, MUSIC & SERVER
+-- TAB 5: MUSIC PLAYER (FULL INTEGRASI DARI PART 5)
+---
+local tabMusic = createTab("Music")
+
+if _G.VinzMusicSound then pcall(function() _G.VinzMusicSound:Destroy() end) end
+
+local musicSound = Instance.new("Sound")
+musicSound.Name = "VinzMusicPlayer"
+musicSound.Volume = 0.5
+musicSound.Parent = SoundService
+_G.VinzMusicSound = musicSound
+
+local DEFAULT_PLAYLIST = {
+    {name = "Via Vallen - Sayang", id = "1214922908"},
+    {name = "Nella Kharisma - Jaran Goyang", id = "1282766124"},
+    {name = "Denny Caknan - Los Dol", id = "6869822315"},
+    {name = "Happy Asmara - Dalan Liyane", id = "6940647577"},
+    {name = "Didi Kempot - Pamer Bojo", id = "5625377967"},
+    {name = "DJ TikTok Viral", id = "8753952093"},
+    {name = "The Weeknd - Blinding Lights", id = "4635671560"},
+    {name = "Dua Lipa - Levitating", id = "6606223785"},
+    {name = "Ed Sheeran - Bad Habits", id = "7202579511"},
+    {name = "Glass Animals - Heat Waves", id = "6432181830"},
+    {name = "SZA - Kill Bill", id = "12196403572"},
+    {name = "Drake - God's Plan", id = "1665926924"},
+}
+
+local currentPlaylist = {}
+for i, v in ipairs(DEFAULT_PLAYLIST) do currentPlaylist[i] = v end
+local currentSong = nil
+local currentIndex = 0
+local isPlaying = false
+
+local musPage = tabMusic.Page
+
+local npCard = Instance.new("Frame")
+npCard.Size = UDim2.new(1, 0, 0, 34)
+npCard.BackgroundColor3 = C_CARD
+npCard.Parent = musPage
+addCorner(npCard, 8)
+
+local nowPlayingLabel = Instance.new("TextLabel")
+nowPlayingLabel.Size = UDim2.new(1, -16, 1, 0)
+nowPlayingLabel.Position = UDim2.fromOffset(8, 0)
+nowPlayingLabel.BackgroundTransparency = 1
+nowPlayingLabel.Text = "⏹ Belum ada lagu"
+nowPlayingLabel.TextColor3 = C_WHITE
+nowPlayingLabel.Font = Enum.Font.GothamBold
+nowPlayingLabel.TextSize = 11
+nowPlayingLabel.TextXAlignment = Enum.TextXAlignment.Left
+nowPlayingLabel.TextTruncate = Enum.TextTruncate.AtEnd
+nowPlayingLabel.Parent = npCard
+
+local playSongByData
+local playBtn, stopBtn, prevBtn, nextBtn
+
+playSongByData = function(song)
+    if not song or not song.id then return end
+    currentSong = song
+    musicSound.SoundId = "rbxassetid://" .. tostring(song.id)
+    musicSound:Play()
+    isPlaying = true
+    if nowPlayingLabel then nowPlayingLabel.Text = "▶ " .. song.name end
+    if playBtn then playBtn.Text = "⏸" end
+    for i, s in ipairs(currentPlaylist) do
+        if s.id == song.id then currentIndex = i; break end
+    end
+end
+
+local function togglePlay()
+    if not currentSong then
+        if #currentPlaylist > 0 then playSongByData(currentPlaylist[1]) end
+        return
+    end
+    if isPlaying then
+        musicSound:Pause()
+        isPlaying = false
+        if playBtn then playBtn.Text = "▶" end
+        if nowPlayingLabel then nowPlayingLabel.Text = "⏸ " .. currentSong.name end
+    else
+        musicSound:Resume()
+        isPlaying = true
+        if playBtn then playBtn.Text = "⏸" end
+        if nowPlayingLabel then nowPlayingLabel.Text = "▶ " .. currentSong.name end
+    end
+end
+
+local function stopSong()
+    musicSound:Stop()
+    isPlaying = false
+    currentSong = nil
+    if playBtn then playBtn.Text = "▶" end
+    if nowPlayingLabel then nowPlayingLabel.Text = "⏹ Belum ada lagu" end
+end
+
+local function nextSong()
+    if #currentPlaylist == 0 then return end
+    currentIndex = currentIndex + 1
+    if currentIndex > #currentPlaylist then currentIndex = 1 end
+    playSongByData(currentPlaylist[currentIndex])
+end
+
+local function prevSong()
+    if #currentPlaylist == 0 then return end
+    currentIndex = currentIndex - 1
+    if currentIndex < 1 then currentIndex = #currentPlaylist end
+    playSongByData(currentPlaylist[currentIndex])
+end
+
+musicSound.Ended:Connect(function() nextSong() end)
+
+local searchCard = Instance.new("Frame")
+searchCard.Size = UDim2.new(1, 0, 0, 42)
+searchCard.BackgroundColor3 = C_CARD
+searchCard.Parent = musPage
+addCorner(searchCard, 8)
+
+local searchBox = Instance.new("TextBox")
+searchBox.Size = UDim2.new(1, -95, 0, 28)
+searchBox.Position = UDim2.new(0, 10, 0.5, -14)
+searchBox.BackgroundColor3 = C_CARD_SUB
+searchBox.PlaceholderText = "Cari lagu / masukkan ID..."
+searchBox.PlaceholderColor3 = C_MUTED
+searchBox.Text = ""
+searchBox.TextColor3 = C_WHITE
+searchBox.Font = Enum.Font.Gotham
+searchBox.TextSize = 11
+searchBox.ClearTextOnFocus = false
+searchBox.Parent = searchCard
+addCorner(searchBox, 6)
+
+local searchBtn = Instance.new("TextButton")
+searchBtn.Size = UDim2.fromOffset(72, 28)
+searchBtn.Position = UDim2.new(1, -80, 0.5, -14)
+searchBtn.BackgroundColor3 = C_ACCENT
+searchBtn.Text = "🔍 Cari"
+searchBtn.TextColor3 = C_WHITE
+searchBtn.Font = Enum.Font.GothamBold
+searchBtn.TextSize = 11
+searchBtn.Parent = searchCard
+addCorner(searchBtn, 6)
+
+local ctrlRow = Instance.new("Frame")
+ctrlRow.Size = UDim2.new(1, 0, 0, 36)
+ctrlRow.BackgroundTransparency = 1
+ctrlRow.Parent = musPage
+
+local function makeCtrl(text, xpos, color)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(0.235, -3, 1, 0)
+    b.Position = UDim2.new(xpos, 0, 0, 0)
+    b.BackgroundColor3 = color
+    b.Text = text
+    b.TextColor3 = C_WHITE
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 15
+    b.Parent = ctrlRow
+    addCorner(b, 6)
+    return b
+end
+
+prevBtn = makeCtrl("⏮", 0, C_CARD)
+playBtn = makeCtrl("▶", 0.255, Color3.fromRGB(0, 160, 90))
+stopBtn = makeCtrl("⏹", 0.51, C_DANGER)
+nextBtn = makeCtrl("⏭", 0.765, C_CARD)
+
+playBtn.Activated:Connect(function() pcall(togglePlay) end)
+prevBtn.Activated:Connect(function() pcall(prevSong) end)
+nextBtn.Activated:Connect(function() pcall(nextSong) end)
+stopBtn.Activated:Connect(function() pcall(stopSong) end)
+
+local volCard = Instance.new("Frame")
+volCard.Size = UDim2.new(1, 0, 0, 36)
+volCard.BackgroundColor3 = C_CARD
+volCard.Parent = musPage
+addCorner(volCard, 8)
+
+local volLabel = Instance.new("TextLabel")
+volLabel.Size = UDim2.new(0, 50, 1, 0)
+volLabel.Position = UDim2.fromOffset(10, 0)
+volLabel.BackgroundTransparency = 1
+volLabel.Text = "Volume:"
+volLabel.TextColor3 = C_MUTED
+volLabel.Font = Enum.Font.GothamMedium
+volLabel.TextSize = 11
+volLabel.TextXAlignment = Enum.TextXAlignment.Left
+volLabel.Parent = volCard
+
+local volBar = Instance.new("Frame")
+volBar.Size = UDim2.new(1, -120, 0, 14)
+volBar.Position = UDim2.new(0, 65, 0.5, -7)
+volBar.BackgroundColor3 = C_CARD_SUB
+volBar.Parent = volCard
+addCorner(volBar, 7)
+
+local volFill = Instance.new("Frame")
+volFill.Size = UDim2.new(0.5, 0, 1, 0)
+volFill.BackgroundColor3 = C_ACCENT
+volFill.Parent = volBar
+addCorner(volFill, 7)
+
+local volValue = Instance.new("TextLabel")
+volValue.Size = UDim2.new(0, 45, 1, 0)
+volValue.Position = UDim2.new(1, -48, 0, 0)
+volValue.BackgroundTransparency = 1
+volValue.Text = "50%"
+volValue.TextColor3 = C_WHITE
+volValue.Font = Enum.Font.GothamBold
+volValue.TextSize = 11
+volValue.Parent = volCard
+
+local draggingVol = false
+local function setVolume(percent)
+    percent = math.clamp(percent, 0, 1)
+    musicSound.Volume = percent
+    if volFill then volFill.Size = UDim2.new(percent, 0, 1, 0) end
+    if volValue then volValue.Text = math.floor(percent * 100) .. "%" end
+end
+
+volBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingVol = true
+        local rel = (input.Position.X - volBar.AbsolutePosition.X) / volBar.AbsoluteSize.X
+        setVolume(rel)
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if draggingVol and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local rel = (input.Position.X - volBar.AbsolutePosition.X) / volBar.AbsoluteSize.X
+        setVolume(rel)
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        draggingVol = false
+    end
+end)
+
+local playlistContainer = Instance.new("Frame")
+playlistContainer.Size = UDim2.new(1, 0, 0, 175)
+playlistContainer.BackgroundColor3 = C_CARD
+playlistContainer.Parent = musPage
+addCorner(playlistContainer, 8)
+
+local playlistScroll = Instance.new("ScrollingFrame")
+playlistScroll.Size = UDim2.new(1, -12, 1, -12)
+playlistScroll.Position = UDim2.fromOffset(6, 6)
+playlistScroll.BackgroundTransparency = 1
+playlistScroll.BorderSizePixel = 0
+playlistScroll.ScrollBarThickness = 2
+playlistScroll.ScrollBarImageColor3 = C_ACCENT
+playlistScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+playlistScroll.Parent = playlistContainer
+
+local pLayout = Instance.new("UIListLayout")
+pLayout.Padding = UDim.new(0, 4)
+pLayout.Parent = playlistScroll
+
+local function renderPlaylist(songs)
+    for _, c in ipairs(playlistScroll:GetChildren()) do
+        if c:IsA("TextButton") then c:Destroy() end
+    end
+    for _, song in ipairs(songs) do
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(1, 0, 0, 28)
+        b.BackgroundColor3 = C_CARD_SUB
+        b.Text = "  🎵 " .. song.name
+        b.TextColor3 = C_WHITE
+        b.Font = Enum.Font.GothamMedium
+        b.TextSize = 11
+        b.TextXAlignment = Enum.TextXAlignment.Left
+        b.TextTruncate = Enum.TextTruncate.AtEnd
+        b.Parent = playlistScroll
+        addCorner(b, 6)
+        b.Activated:Connect(function()
+            playSongByData(song)
+        end)
+    end
+end
+
+local function doSearch(query)
+    query = (query or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if query == "" then
+        currentPlaylist = {}
+        for i, v in ipairs(DEFAULT_PLAYLIST) do currentPlaylist[i] = v end
+        renderPlaylist(currentPlaylist)
+        return
+    end
+
+    local idOnly = query:gsub("rbxassetid://", "")
+    if idOnly:match("^%d+$") then
+        playSongByData({name = "ID: " .. idOnly, id = idOnly})
+        return
+    end
+
+    local ok, result = pcall(function()
+        return AssetService:SearchAudioAsync(query)
+    end)
+    if not ok or not result then return end
+
+    local ok2, pagesObj = pcall(function() return result:GetCurrentPage() end)
+    if not ok2 or not pagesObj then return end
+
+    local found = {}
+    for _, item in ipairs(pagesObj) do
+        if item.id then
+            table.insert(found, {
+                name = (item.name or "Unknown"):sub(1, 40),
+                id = tostring(item.id)
+            })
+        end
+    end
+
+    if #found > 0 then
+        currentPlaylist = found
+        renderPlaylist(found)
+    end
+end
+
+searchBtn.Activated:Connect(function() pcall(doSearch, searchBox.Text) end)
+searchBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then pcall(doSearch, searchBox.Text) end
+end)
+
+renderPlaylist(currentPlaylist)
+setVolume(0.5)
+
+---
+-- TAB 6: MISC & SERVER, BOOT ANIMATION & INITIALIZATION (PART 5/5)
 ---
 local tabMisc = createTab("Misc")
-
--- MUSIC PLAYER ENGINE
-local currentSound = nil
-local currentVolume = 2
-
-local function playMusic(soundId)
-    if currentSound then
-        currentSound:Stop()
-        currentSound:Destroy()
-        currentSound = nil
-    end
-
-    local cleanId = tostring(soundId):gsub("%D", "")
-    if cleanId == "" then return end
-
-    currentSound = Instance.new("Sound")
-    currentSound.Name = "VK_MusicPlayer"
-    currentSound.SoundId = "rbxassetid://" .. cleanId
-    currentSound.Volume = currentVolume
-    currentSound.Looped = true
-    currentSound.Parent = SoundService
-    currentSound:Play()
-end
-
-local function stopMusic()
-    if currentSound then
-        currentSound:Stop()
-        currentSound:Destroy()
-        currentSound = nil
-    end
-end
-
-tabMisc:AddInput("Ketik Audio ID / Search...", "Play", function(txt)
-    playMusic(txt)
-end)
-
-tabMisc:AddButton("Stop Music", function()
-    stopMusic()
-end)
-
-tabMisc:AddStepper("Volume Musik", 1, 10, 1, 2, function(v)
-    currentVolume = v
-    if currentSound then currentSound.Volume = v end
-end)
-
--- Preset Musik Populer
-tabMisc:AddButton("Preset: Tokyo Drift Phonk", function()
-    playMusic("7081701387")
-end)
-tabMisc:AddButton("Preset: Relaxing Lo-Fi Chill", function()
-    playMusic("9048375035")
-end)
 
 tabMisc:AddToggle("Show FPS & Ping Overlay", true, function(on)
     statsFrame.Visible = on
 end)
 
--- Server Hop Engine
 local function serverHop(lower)
     local placeId = game.PlaceId
     local currentJob = game.JobId
@@ -1413,7 +1793,6 @@ tabMisc:AddButton("Change Lower Server (Sepi)", function()
     serverHop(true)
 end)
 
--- Anti AFK (Auto On)
 local afkConn = nil
 local function startAntiAFK()
     if not afkConn then
@@ -1479,7 +1858,7 @@ tabMisc:AddButton("Rejoin Server", function()
 end)
 
 ---
--- MENJALANKAN ANIMASI INTRO
+-- MENJALANKAN ANIMASI INTRO & BOOT
 ---
 task.spawn(function()
     task.wait(0.3)

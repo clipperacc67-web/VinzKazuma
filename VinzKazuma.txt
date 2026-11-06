@@ -1,7 +1,7 @@
 --[[
-    Vinz Kazuma Hub - Universal Mobile Edition (PART 1/4)
+    Vinz Kazuma Hub - Universal Mobile Edition (PART 1/5)
     UI Style: Modern Sidebar & Tabs
-    Includes: Core Services, Silent Aim Metamethod Hook, Realtime FPS/Ping Overlay, Intro Animation & Floating Logo
+    Includes: Core Services, ReplicatedStorage Detection, Character Helpers, FPS/Ping Overlay, & Floating Logo
 ]]
 
 local Players = game:GetService("Players")
@@ -12,12 +12,13 @@ local TeleportService = game:GetService("TeleportService")
 local VirtualUser = game:GetService("VirtualUser")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Stats = game:GetService("Stats")
 local CoreGui = game:GetService("CoreGui")
 
 local lp = Players.LocalPlayer
 
--- Bersihkan instance GUI lama jika ada
+-- Cleanup instance GUI lama jika ada
 pcall(function()
     local old = (gethui and gethui() or CoreGui):FindFirstChild("VinzKazumaModern")
     if old then old:Destroy() end
@@ -95,9 +96,6 @@ local function makeDraggable(handle, target, onClick)
     end)
 end
 
----
--- CHARACTER HELPERS
----
 local function getHum()
     local c = lp.Character
     return c and c:FindFirstChildOfClass("Humanoid")
@@ -105,6 +103,13 @@ end
 local function getRoot()
     local c = lp.Character
     return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+-- Detection Decal dari Touch Fling
+if not ReplicatedStorage:FindFirstChild("juisdfj0i32i0eidsuf0iok") then
+    local detection = Instance.new("Decal")
+    detection.Name = "juisdfj0i32i0eidsuf0iok"
+    detection.Parent = ReplicatedStorage
 end
 
 ---
@@ -145,7 +150,62 @@ RunService.RenderStepped:Connect(function()
 end)
 
 ---
--- SILENT AIM ENGINE (METAMETHOD HOOK)
+-- INTRO ANIMATION & FLOATING BUTTON
+---
+local introLayer = Instance.new("Frame")
+introLayer.Name = "IntroLayer"
+introLayer.Size = UDim2.fromScale(1, 1)
+introLayer.BackgroundTransparency = 1
+introLayer.Parent = gui
+
+local introCenter = Instance.new("Frame")
+introCenter.Size = UDim2.fromOffset(260, 60)
+introCenter.Position = UDim2.new(0.5, -130, 1.2, 0)
+introCenter.BackgroundTransparency = 1
+introCenter.ClipsDescendants = true
+introCenter.Parent = introLayer
+
+local introLogo = Instance.new("TextLabel")
+introLogo.Size = UDim2.fromOffset(50, 50)
+introLogo.Position = UDim2.new(0, 0, 0.5, -25)
+introLogo.BackgroundColor3 = C_SIDEBAR
+introLogo.Text = "V"
+introLogo.TextColor3 = C_ACCENT
+introLogo.Font = Enum.Font.GothamBlack
+introLogo.TextSize = 30
+introLogo.Parent = introCenter
+addCorner(introLogo, 25)
+addStroke(introLogo, C_ACCENT, 2)
+
+local introText = Instance.new("TextLabel")
+introText.Size = UDim2.new(0, 190, 0, 40)
+introText.Position = UDim2.new(0, 55, 0.5, -20)
+introText.BackgroundTransparency = 1
+introText.Text = "Vinz Kazuma"
+introText.TextColor3 = C_WHITE
+introText.Font = Enum.Font.GothamBold
+introText.TextSize = 24
+introText.TextXAlignment = Enum.TextXAlignment.Left
+introText.TextTransparency = 1
+introText.Parent = introCenter
+
+local mainLogo = Instance.new("TextButton")
+mainLogo.Name = "FloatingLogo"
+mainLogo.Size = UDim2.fromOffset(46, 46)
+mainLogo.Position = UDim2.new(0, 15, 0.4, 0)
+mainLogo.BackgroundColor3 = C_SIDEBAR
+mainLogo.Text = "V"
+mainLogo.TextColor3 = C_ACCENT
+mainLogo.Font = Enum.Font.GothamBlack
+mainLogo.TextSize = 24
+mainLogo.Visible = false
+mainLogo.AutoButtonColor = false
+mainLogo.Parent = gui
+addCorner(mainLogo, 23)
+addStroke(mainLogo, C_ACCENT, 1.8)
+
+---
+-- SILENT AIM HOOK, MAIN WINDOW FRAME & SIDEBAR SETUP (PART 2/5)
 ---
 local silentAimOn = false
 
@@ -216,64 +276,6 @@ pcall(function()
     end
 end)
 
----
--- INTRO ANIMATION & FLOATING BUTTON
----
-local introLayer = Instance.new("Frame")
-introLayer.Name = "IntroLayer"
-introLayer.Size = UDim2.fromScale(1, 1)
-introLayer.BackgroundTransparency = 1
-introLayer.Parent = gui
-
-local introCenter = Instance.new("Frame")
-introCenter.Size = UDim2.fromOffset(260, 60)
-introCenter.Position = UDim2.new(0.5, -130, 1.2, 0)
-introCenter.BackgroundTransparency = 1
-introCenter.ClipsDescendants = true
-introCenter.Parent = introLayer
-
-local introLogo = Instance.new("TextLabel")
-introLogo.Size = UDim2.fromOffset(50, 50)
-introLogo.Position = UDim2.new(0, 0, 0.5, -25)
-introLogo.BackgroundColor3 = C_SIDEBAR
-introLogo.Text = "V"
-introLogo.TextColor3 = C_ACCENT
-introLogo.Font = Enum.Font.GothamBlack
-introLogo.TextSize = 30
-introLogo.Parent = introCenter
-addCorner(introLogo, 25)
-addStroke(introLogo, C_ACCENT, 2)
-
-local introText = Instance.new("TextLabel")
-introText.Size = UDim2.new(0, 190, 0, 40)
-introText.Position = UDim2.new(0, 55, 0.5, -20)
-introText.BackgroundTransparency = 1
-introText.Text = "Vinz Kazuma"
-introText.TextColor3 = C_WHITE
-introText.Font = Enum.Font.GothamBold
-introText.TextSize = 24
-introText.TextXAlignment = Enum.TextXAlignment.Left
-introText.TextTransparency = 1
-introText.Parent = introCenter
-
-local mainLogo = Instance.new("TextButton")
-mainLogo.Name = "FloatingLogo"
-mainLogo.Size = UDim2.fromOffset(46, 46)
-mainLogo.Position = UDim2.new(0, 15, 0.4, 0)
-mainLogo.BackgroundColor3 = C_SIDEBAR
-mainLogo.Text = "V"
-mainLogo.TextColor3 = C_ACCENT
-mainLogo.Font = Enum.Font.GothamBlack
-mainLogo.TextSize = 24
-mainLogo.Visible = false
-mainLogo.AutoButtonColor = false
-mainLogo.Parent = gui
-addCorner(mainLogo, 23)
-addStroke(mainLogo, C_ACCENT, 1.8)
-
----
--- MAIN WINDOW FRAME, TAB BUILDER & TAB 1: PLAYER & COMBAT (PART 2/4)
----
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
 mainFrame.Size = UDim2.fromOffset(530, 330)
@@ -407,6 +409,9 @@ closeBtn.Activated:Connect(function() toggleMenu(false) end)
 makeDraggable(topBar, mainFrame)
 makeDraggable(mainLogo, mainLogo, function() toggleMenu(not mainFrame.Visible) end)
 
+---
+-- TAB SYSTEM ENGINE & TAB 1: PLAYER / COMBAT (PART 3/5)
+---
 local tabs = {}
 local activeTab = nil
 
@@ -641,108 +646,35 @@ tabPlayer:AddToggle("Auto Aim (Via Peluru)", false, function(on)
     silentAimOn = on
 end)
 
--- Walk Fling (Sistem Stabilizer Anti-Mental untuk LocalPlayer)
-local walkFlingOn = false
-local walkFlingConn = nil
-local walkFlingBV = nil
-local walkFlingBG = nil
+-- Walk Fling (Logika Touch Fling dari Script Input)
+local hiddenfling = false
+local flingThread = nil
 
-local function stopWalkFling()
-    walkFlingOn = false
-    if walkFlingConn then walkFlingConn:Disconnect(); walkFlingConn = nil end
-    if walkFlingBV then walkFlingBV:Destroy(); walkFlingBV = nil end
-    if walkFlingBG then walkFlingBG:Destroy(); walkFlingBG = nil end
+local function touchFlingLoop()
+    local c, hrp, vel, movel = nil, nil, nil, 0.1
+    while hiddenfling do
+        RunService.Heartbeat:Wait()
+        c = lp.Character
+        hrp = c and c:FindFirstChild("HumanoidRootPart")
 
-    local hum = getHum()
-    local hrp = getRoot()
-    if hum then
-        hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-        hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
-        hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-    end
-    if hrp then
-        hrp.AssemblyAngularVelocity = Vector3.zero
-        hrp.AssemblyLinearVelocity = Vector3.zero
+        if hrp then
+            vel = hrp.Velocity
+            hrp.Velocity = vel * 10000 + Vector3.new(0, 10000, 0)
+            RunService.RenderStepped:Wait()
+            hrp.Velocity = vel
+            RunService.Stepped:Wait()
+            hrp.Velocity = vel + Vector3.new(0, movel, 0)
+            movel = -movel
+        end
     end
 end
 
-local function startWalkFling()
-    stopWalkFling()
-    local hum = getHum()
-    local hrp = getRoot()
-    local char = lp.Character
-    if not hum or not hrp or not char then return end
-
-    walkFlingOn = true
-
-    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-
-    -- Stabilizer penahan badan agar LocalPlayer kebal terpental
-    walkFlingBV = Instance.new("BodyVelocity")
-    walkFlingBV.Name = "VK_WalkFlingStabilizer"
-    walkFlingBV.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-    walkFlingBV.Velocity = Vector3.zero
-    walkFlingBV.Parent = hrp
-
-    walkFlingBG = Instance.new("BodyGyro")
-    walkFlingBG.Name = "VK_WalkFlingGyro"
-    walkFlingBG.MaxTorque = Vector3.new(1e9, 0, 1e9)
-    walkFlingBG.P = 30000
-    walkFlingBG.D = 500
-    walkFlingBG.CFrame = hrp.CFrame
-    walkFlingBG.Parent = hrp
-
-    walkFlingConn = RunService.Heartbeat:Connect(function()
-        if not walkFlingOn or not hrp.Parent or hum.Health <= 0 then
-            stopWalkFling()
-            return
-        end
-
-        local md = hum.MoveDirection
-        local curSpeed = (speedOn and speedVal or 16)
-        if md.Magnitude > 0 then
-            walkFlingBV.Velocity = md * curSpeed
-        else
-            walkFlingBV.Velocity = Vector3.zero
-        end
-
-        local enemyNearby = false
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= lp and p.Character then
-                local eHrp = p.Character:FindFirstChild("HumanoidRootPart")
-                local eHum = p.Character:FindFirstChildOfClass("Humanoid")
-                if eHrp and eHum and eHum.Health > 0 then
-                    local dist = (eHrp.Position - hrp.Position).Magnitude
-                    if dist <= 7.5 then
-                        enemyNearby = true
-                        for _, part in ipairs(char:GetChildren()) do
-                            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                                part.CanCollide = true
-                            end
-                        end
-                        break
-                    end
-                end
-            end
-        end
-
-        if enemyNearby then
-            -- Putaran kinetik ekstrem yang memindahkan momentum ke tubuh musuh
-            hrp.AssemblyAngularVelocity = Vector3.new(0, 300000, 0)
-        else
-            hrp.AssemblyAngularVelocity = Vector3.zero
-        end
-
-        -- Redam gaya liar jika ada tabrakan yang mencoba melempar kita
-        if math.abs(hrp.AssemblyLinearVelocity.Y) > 30 then
-            hrp.AssemblyLinearVelocity = Vector3.new(hrp.AssemblyLinearVelocity.X, 0, hrp.AssemblyLinearVelocity.Z)
-        end
-    end)
-end
-
-tabPlayer:AddToggle("Walk Fling (Sentuh Mental)", false, function(on)
-    if on then startWalkFling() else stopWalkFling() end
+tabPlayer:AddToggle("Walk Fling (Touch Fling)", false, function(on)
+    hiddenfling = on
+    if hiddenfling then
+        flingThread = coroutine.create(touchFlingLoop)
+        coroutine.resume(flingThread)
+    end
 end)
 
 local immuneOn = false
@@ -773,7 +705,6 @@ end)
 lp.CharacterAdded:Connect(function()
     task.wait(0.5)
     if immuneOn then setupImmune() end
-    if walkFlingOn then startWalkFling() end
 end)
 
 local noFallOn = false
@@ -871,6 +802,9 @@ end)
 tabPlayer:AddStepper("Hitbox Size", 2, 60, 2, 15, function(v) hitboxSize = v end)
 tabPlayer:AddStepper("Hitbox Vis (0=Hilang)", 0, 10, 1, 0, function(v) hitboxAlpha = v end)
 
+---
+-- TAB 1: PLAYER (LANJUTAN) & TAB 2: MOVEMENT (PART 4/5)
+---
 local spectateIndex = 1
 local function spectateTarget(p)
     local cam = workspace.CurrentCamera
@@ -1031,7 +965,7 @@ tabPlayer:AddToggle("Player ESP + Distance", false, function(on)
 end)
 
 ---
--- TAB 2: MOVEMENT & TAB 3: CAMERA & VISUALS (PART 3/4)
+-- TAB 2: MOVEMENT
 ---
 local tabMovement = createTab("Movement")
 
@@ -1135,8 +1069,8 @@ tabMovement:AddToggle("Walk on Water (Jesus)", false, function(on)
     end
 end)
 
--- Ultra Smooth Mobile Fly 3D (Freeze Pose + Cam Lock + Fly Fling)
-local flyOn, flyFlingOn, flySpeed = false, false, 50
+-- Ultra Smooth Mobile Fly 3D (Freeze Pose + Cam Lock)
+local flyOn, flySpeed = false, 50
 local flyBV, flyBG, flyConn
 local currentVel = Vector3.zero
 
@@ -1148,8 +1082,6 @@ local function stopFly()
 
     local char = lp.Character
     local hum = getHum()
-    local hrp = getRoot()
-
     if hum then
         hum.PlatformStand = false
         hum.AutoRotate = true
@@ -1158,10 +1090,6 @@ local function stopFly()
     if char then
         local animScript = char:FindFirstChild("Animate")
         if animScript then animScript.Enabled = true end
-    end
-    if hrp then
-        hrp.AssemblyAngularVelocity = Vector3.zero
-        hrp.AssemblyLinearVelocity = Vector3.zero
     end
 end
 
@@ -1179,7 +1107,6 @@ local function startFly()
     hum.PlatformStand = true
     hum.AutoRotate = false
 
-    -- BodyVelocity 1e8 menahan posisi terbang kita sehingga musuh tidak bisa melempar kita
     flyBV = Instance.new("BodyVelocity")
     flyBV.MaxForce = Vector3.new(1e8, 1e8, 1e8)
     flyBV.Velocity = Vector3.zero
@@ -1219,35 +1146,6 @@ local function startFly()
         flyBV.Velocity = currentVel
 
         flyBG.CFrame = flyBG.CFrame:Lerp(CFrame.new(hrp.Position, hrp.Position + cam.CFrame.LookVector), smoothFactor)
-
-        -- Fly Fling: Tabrak musuh di udara/darat -> Musuh terpental, LocalPlayer tetap stabil di jalur terbang
-        if flyFlingOn then
-            local enemyClose = false
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= lp and p.Character then
-                    local eHrp = p.Character:FindFirstChild("HumanoidRootPart")
-                    local eHum = p.Character:FindFirstChildOfClass("Humanoid")
-                    if eHrp and eHum and eHum.Health > 0 then
-                        local dist = (eHrp.Position - hrp.Position).Magnitude
-                        if dist <= 8.5 then
-                            enemyClose = true
-                            for _, part in ipairs(char:GetChildren()) do
-                                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-                                    part.CanCollide = true
-                                end
-                            end
-                            break
-                        end
-                    end
-                end
-            end
-
-            if enemyClose then
-                hrp.AssemblyAngularVelocity = Vector3.new(0, 350000, 0)
-            else
-                hrp.AssemblyAngularVelocity = Vector3.zero
-            end
-        end
     end)
 end
 
@@ -1255,19 +1153,10 @@ tabMovement:AddToggle("Smooth Fly (Freeze & Cam Lock)", false, function(on)
     flyOn = on
     if on then startFly() else stopFly() end
 end)
-
-tabMovement:AddToggle("Fly Fling (Tabrak Mental)", false, function(on)
-    flyFlingOn = on
-    if on and not flyOn then
-        flyOn = true
-        startFly()
-    end
-end)
-
 tabMovement:AddStepper("Fly Speed", 10, 250, 10, 50, function(v) flySpeed = v end)
 
 ---
--- TAB 3: CAMERA & VISUALS
+-- TAB 3: CAMERA, TAB 4: CLICKER, TAB 5: MISC & LAUNCHER (PART 5/5)
 ---
 local tabVisuals = createTab("Camera")
 
@@ -1481,7 +1370,7 @@ tabVisuals:AddToggle("Click TP Tool", false, function(on)
 end)
 
 ---
--- TAB 4: AUTO CLICKER, TAB 5: MISC & SERVER, BOOT ANIMATION (PART 4/4)
+-- TAB 4: AUTO CLICKER
 ---
 local tabClicker = createTab("Clicker")
 

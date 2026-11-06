@@ -1,7 +1,7 @@
 --[[
     Vinz Kazuma Hub - Universal Mobile Edition (PART 1/5)
     UI Style: Modern Sidebar & Tabs
-    Includes: Core Services, ReplicatedStorage Detection, Character Helpers, FPS/Ping Overlay, & Floating Logo
+    Includes: Core Services, Super Ring Network Engine, Character Helpers, FPS/Ping Overlay & Floating Logo
 ]]
 
 local Players = game:GetService("Players")
@@ -105,7 +105,7 @@ local function getRoot()
     return c and c:FindFirstChild("HumanoidRootPart")
 end
 
--- Detection Decal dari Touch Fling
+-- Detection Decal untuk Bypass Fling
 if not ReplicatedStorage:FindFirstChild("juisdfj0i32i0eidsuf0iok") then
     local detection = Instance.new("Decal")
     detection.Name = "juisdfj0i32i0eidsuf0iok"
@@ -205,7 +205,7 @@ addCorner(mainLogo, 23)
 addStroke(mainLogo, C_ACCENT, 1.8)
 
 ---
--- SILENT AIM HOOK, MAIN WINDOW FRAME & SIDEBAR SETUP (PART 2/5)
+-- SILENT AIM HOOK, MAIN WINDOW SETUP & TAB BUILDER (PART 2/5)
 ---
 local silentAimOn = false
 
@@ -409,9 +409,6 @@ closeBtn.Activated:Connect(function() toggleMenu(false) end)
 makeDraggable(topBar, mainFrame)
 makeDraggable(mainLogo, mainLogo, function() toggleMenu(not mainFrame.Visible) end)
 
----
--- TAB SYSTEM ENGINE & TAB 1: PLAYER / COMBAT (PART 3/5)
----
 local tabs = {}
 local activeTab = nil
 
@@ -620,7 +617,7 @@ local function createTab(tabName)
 end
 
 ---
--- TAB 1: PLAYER & COMBAT
+-- TAB 1: PLAYER & COMBAT (PART 3/5)
 ---
 local tabPlayer = createTab("Player")
 
@@ -646,7 +643,7 @@ tabPlayer:AddToggle("Auto Aim (Via Peluru)", false, function(on)
     silentAimOn = on
 end)
 
--- Walk Fling (Logika Touch Fling dari Script Input)
+-- Walk Fling (Bypass Touch Fling Physics)
 local hiddenfling = false
 local flingThread = nil
 
@@ -802,9 +799,6 @@ end)
 tabPlayer:AddStepper("Hitbox Size", 2, 60, 2, 15, function(v) hitboxSize = v end)
 tabPlayer:AddStepper("Hitbox Vis (0=Hilang)", 0, 10, 1, 0, function(v) hitboxAlpha = v end)
 
----
--- TAB 1: PLAYER (LANJUTAN) & TAB 2: MOVEMENT (PART 4/5)
----
 local spectateIndex = 1
 local function spectateTarget(p)
     local cam = workspace.CurrentCamera
@@ -965,7 +959,7 @@ tabPlayer:AddToggle("Player ESP + Distance", false, function(on)
 end)
 
 ---
--- TAB 2: MOVEMENT
+-- TAB 2: MOVEMENT & TAB 3: SUPER RING / TORNADO (PART 4/5)
 ---
 local tabMovement = createTab("Movement")
 
@@ -1069,7 +1063,7 @@ tabMovement:AddToggle("Walk on Water (Jesus)", false, function(on)
     end
 end)
 
--- Ultra Smooth Mobile Fly 3D (Freeze Pose + Cam Lock)
+-- Smooth Mobile Fly 3D (Freeze Pose + Cam Lock)
 local flyOn, flySpeed = false, 50
 local flyBV, flyBG, flyConn
 local currentVel = Vector3.zero
@@ -1156,7 +1150,102 @@ end)
 tabMovement:AddStepper("Fly Speed", 10, 250, 10, 50, function(v) flySpeed = v end)
 
 ---
--- TAB 3: CAMERA, TAB 4: CLICKER, TAB 5: MISC & LAUNCHER (PART 5/5)
+-- TAB 3: SUPER RING (TORNADO PARTS FLING)
+---
+local tabRing = createTab("Super Ring")
+
+local ringConfig = {
+    radius = 50,
+    height = 100,
+    rotationSpeed = 10,
+    attractionStrength = 1000,
+}
+local ringPartsEnabled = false
+
+local function RetainPart(Part)
+    if Part:IsA("BasePart") and not Part.Anchored and Part:IsDescendantOf(workspace) then
+        if Part.Parent == lp.Character or Part:IsDescendantOf(lp.Character) then
+            return false
+        end
+        pcall(function()
+            Part.CustomPhysicalProperties = PhysicalProperties.new(0, 0, 0, 0, 0)
+            Part.CanCollide = false
+        end)
+        return true
+    end
+    return false
+end
+
+local ringParts = {}
+local function addRingPart(part)
+    if RetainPart(part) then
+        if not table.find(ringParts, part) then
+            table.insert(ringParts, part)
+        end
+    end
+end
+local function removeRingPart(part)
+    local idx = table.find(ringParts, part)
+    if idx then table.remove(ringParts, idx) end
+end
+
+for _, part in ipairs(workspace:GetDescendants()) do
+    addRingPart(part)
+end
+workspace.DescendantAdded:Connect(addRingPart)
+workspace.DescendantRemoving:Connect(removeRingPart)
+
+RunService.Heartbeat:Connect(function()
+    if not ringPartsEnabled then return end
+    pcall(function()
+        sethiddenproperty(lp, "SimulationRadius", math.huge)
+    end)
+    local hrp = getRoot()
+    if hrp then
+        local tornadoCenter = hrp.Position
+        for _, part in ipairs(ringParts) do
+            if part.Parent and not part.Anchored then
+                local pos = part.Position
+                local distance = (Vector3.new(pos.X, tornadoCenter.Y, pos.Z) - tornadoCenter).Magnitude
+                local angle = math.atan2(pos.Z - tornadoCenter.Z, pos.X - tornadoCenter.X)
+                local newAngle = angle + math.rad(ringConfig.rotationSpeed)
+                local targetPos = Vector3.new(
+                    tornadoCenter.X + math.cos(newAngle) * math.min(ringConfig.radius, distance),
+                    tornadoCenter.Y + (ringConfig.height * (math.abs(math.sin((pos.Y - tornadoCenter.Y) / math.max(1, ringConfig.height))))),
+                    tornadoCenter.Z + math.sin(newAngle) * math.min(ringConfig.radius, distance)
+                )
+                local diff = (targetPos - part.Position)
+                local dir = diff.Magnitude > 0.05 and diff.Unit or Vector3.zero
+                local finalVel = dir * ringConfig.attractionStrength
+                part.Velocity = finalVel
+                pcall(function() part.AssemblyLinearVelocity = finalVel end)
+            end
+        end
+    end
+end)
+
+tabRing:AddToggle("Super Ring (Tornado)", false, function(on)
+    ringPartsEnabled = on
+end)
+
+tabRing:AddStepper("Ring Radius", 10, 200, 10, 50, function(v)
+    ringConfig.radius = v
+end)
+
+tabRing:AddStepper("Ring Height", 10, 300, 10, 100, function(v)
+    ringConfig.height = v
+end)
+
+tabRing:AddStepper("Rotation Speed", 1, 50, 5, 10, function(v)
+    ringConfig.rotationSpeed = v
+end)
+
+tabRing:AddStepper("Attract Strength", 100, 5000, 200, 1000, function(v)
+    ringConfig.attractionStrength = v
+end)
+
+---
+-- TAB 4: CAMERA, TAB 5: CLICKER, TAB 6: MISC & LAUNCHER (PART 5/5)
 ---
 local tabVisuals = createTab("Camera")
 
@@ -1370,7 +1459,7 @@ tabVisuals:AddToggle("Click TP Tool", false, function(on)
 end)
 
 ---
--- TAB 4: AUTO CLICKER
+-- TAB 5: AUTO CLICKER
 ---
 local tabClicker = createTab("Clicker")
 
@@ -1463,7 +1552,7 @@ task.spawn(function()
 end)
 
 ---
--- TAB 5: MISC & SERVER
+-- TAB 6: MISC & SERVER
 ---
 local tabMisc = createTab("Misc")
 

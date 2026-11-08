@@ -1,7 +1,7 @@
 --[[
     Vinz Kazuma Hub - Universal Mobile Edition (PART 1/5)
-    UI Style: Modern Sidebar & Tabs
-    Includes: Core Services, Super Ring Network Engine, Character Helpers, FPS/Ping Overlay & Floating Logo
+    UI Style: Modern Card & Sidebar (Inspired by Codium/Rayfield Reference)
+    Includes: Core Services, ReplicatedStorage Detection, Character Helpers, FPS/Ping Overlay, & Deluxe Intro
 ]]
 
 local Players = game:GetService("Players")
@@ -18,31 +18,32 @@ local CoreGui = game:GetService("CoreGui")
 
 local lp = Players.LocalPlayer
 
--- Cleanup instance GUI lama jika ada
+-- Cleanup instance GUI lama
 pcall(function()
-    local old = (gethui and gethui() or CoreGui):FindFirstChild("VinzKazumaModern")
+    local old = (gethui and gethui() or CoreGui):FindFirstChild("VinzKazumaCodium")
     if old then old:Destroy() end
 end)
 pcall(function()
-    local old = lp.PlayerGui:FindFirstChild("VinzKazumaModern")
+    local old = lp.PlayerGui:FindFirstChild("VinzKazumaCodium")
     if old then old:Destroy() end
 end)
 
 ---
--- PALET TEMA MODERN
+-- PALET TEMA CODIUM MODERN
 ---
-local C_BG           = Color3.fromRGB(16, 17, 22)
-local C_SIDEBAR      = Color3.fromRGB(22, 23, 30)
-local C_CARD         = Color3.fromRGB(28, 29, 38)
-local C_CARD_SUB     = Color3.fromRGB(34, 35, 46)
+local C_BG           = Color3.fromRGB(15, 16, 20)
+local C_SIDEBAR      = Color3.fromRGB(20, 21, 27)
+local C_CARD         = Color3.fromRGB(26, 27, 35)
+local C_CARD_INNER   = Color3.fromRGB(32, 33, 44)
 local C_ACCENT       = Color3.fromRGB(130, 80, 255)
+local C_CYAN         = Color3.fromRGB(0, 220, 180)
 local C_WHITE        = Color3.fromRGB(245, 245, 245)
-local C_MUTED        = Color3.fromRGB(150, 150, 165)
-local C_DANGER       = Color3.fromRGB(235, 60, 75)
-local C_TOGGLE_OFF   = Color3.fromRGB(50, 50, 65)
+local C_MUTED        = Color3.fromRGB(130, 130, 145)
+local C_DANGER       = Color3.fromRGB(235, 55, 70)
+local C_TOGGLE_OFF   = Color3.fromRGB(45, 46, 58)
 
 local gui = Instance.new("ScreenGui")
-gui.Name = "VinzKazumaModern"
+gui.Name = "VinzKazumaCodium"
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.IgnoreGuiInset = true
@@ -105,7 +106,7 @@ local function getRoot()
     return c and c:FindFirstChild("HumanoidRootPart")
 end
 
--- Detection Decal untuk Bypass Fling
+-- Detection Decal untuk Fling Compatibility
 if not ReplicatedStorage:FindFirstChild("juisdfj0i32i0eidsuf0iok") then
     local detection = Instance.new("Decal")
     detection.Name = "juisdfj0i32i0eidsuf0iok"
@@ -117,14 +118,14 @@ end
 ---
 local statsFrame = Instance.new("Frame")
 statsFrame.Name = "StatsOverlay"
-statsFrame.Size = UDim2.fromOffset(130, 24)
-statsFrame.Position = UDim2.new(0.5, -65, 0, 10)
+statsFrame.Size = UDim2.fromOffset(140, 26)
+statsFrame.Position = UDim2.new(0.5, -70, 0, 10)
 statsFrame.BackgroundColor3 = C_SIDEBAR
-statsFrame.BackgroundTransparency = 0.3
+statsFrame.BackgroundTransparency = 0.25
 statsFrame.Visible = true
 statsFrame.Parent = gui
-addCorner(statsFrame, 12)
-addStroke(statsFrame, C_ACCENT, 1)
+addCorner(statsFrame, 13)
+addStroke(statsFrame, C_ACCENT, 1.2)
 
 local statsLabel = Instance.new("TextLabel")
 statsLabel.Size = UDim2.fromScale(1, 1)
@@ -150,7 +151,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 ---
--- INTRO ANIMATION & FLOATING BUTTON
+-- DELUXE INTRO ANIMATION & FLOATING BUTTON
 ---
 local introLayer = Instance.new("Frame")
 introLayer.Name = "IntroLayer"
@@ -159,53 +160,63 @@ introLayer.BackgroundTransparency = 1
 introLayer.Parent = gui
 
 local introCenter = Instance.new("Frame")
-introCenter.Size = UDim2.fromOffset(260, 60)
-introCenter.Position = UDim2.new(0.5, -130, 1.2, 0)
+introCenter.Size = UDim2.fromOffset(280, 70)
+introCenter.Position = UDim2.new(0.5, -140, 1.2, 0)
 introCenter.BackgroundTransparency = 1
 introCenter.ClipsDescendants = true
 introCenter.Parent = introLayer
 
 local introLogo = Instance.new("TextLabel")
-introLogo.Size = UDim2.fromOffset(50, 50)
-introLogo.Position = UDim2.new(0, 0, 0.5, -25)
+introLogo.Size = UDim2.fromOffset(56, 56)
+introLogo.Position = UDim2.new(0, 0, 0.5, -28)
 introLogo.BackgroundColor3 = C_SIDEBAR
 introLogo.Text = "V"
 introLogo.TextColor3 = C_ACCENT
 introLogo.Font = Enum.Font.GothamBlack
-introLogo.TextSize = 30
+introLogo.TextSize = 34
 introLogo.Parent = introCenter
-addCorner(introLogo, 25)
-addStroke(introLogo, C_ACCENT, 2)
+addCorner(introLogo, 28)
+local introLogoStroke = addStroke(introLogo, C_ACCENT, 2.5)
 
 local introText = Instance.new("TextLabel")
-introText.Size = UDim2.new(0, 190, 0, 40)
-introText.Position = UDim2.new(0, 55, 0.5, -20)
+introText.Size = UDim2.new(0, 210, 0, 44)
+introText.Position = UDim2.new(0, 68, 0.5, -22)
 introText.BackgroundTransparency = 1
 introText.Text = "Vinz Kazuma"
 introText.TextColor3 = C_WHITE
 introText.Font = Enum.Font.GothamBold
-introText.TextSize = 24
+introText.TextSize = 26
 introText.TextXAlignment = Enum.TextXAlignment.Left
 introText.TextTransparency = 1
 introText.Parent = introCenter
 
+-- Floating Logo Interaktif (Kiri Layar) dengan Breathing Effect
 local mainLogo = Instance.new("TextButton")
 mainLogo.Name = "FloatingLogo"
-mainLogo.Size = UDim2.fromOffset(46, 46)
-mainLogo.Position = UDim2.new(0, 15, 0.4, 0)
+mainLogo.Size = UDim2.fromOffset(48, 48)
+mainLogo.Position = UDim2.new(0, 16, 0.4, 0)
 mainLogo.BackgroundColor3 = C_SIDEBAR
 mainLogo.Text = "V"
 mainLogo.TextColor3 = C_ACCENT
 mainLogo.Font = Enum.Font.GothamBlack
-mainLogo.TextSize = 24
+mainLogo.TextSize = 26
 mainLogo.Visible = false
 mainLogo.AutoButtonColor = false
 mainLogo.Parent = gui
-addCorner(mainLogo, 23)
-addStroke(mainLogo, C_ACCENT, 1.8)
+addCorner(mainLogo, 24)
+local flStroke = addStroke(mainLogo, C_ACCENT, 2)
+
+task.spawn(function()
+    while true do
+        TweenService:Create(flStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Color = C_CYAN}):Play()
+        task.wait(1.2)
+        TweenService:Create(flStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Color = C_ACCENT}):Play()
+        task.wait(1.2)
+    end
+end)
 
 ---
--- SILENT AIM HOOK, MAIN WINDOW SETUP & TAB BUILDER (PART 2/5)
+-- SILENT AIM HOOK, CODIUM WINDOW FRAME & UI ENGINE BUILDER (PART 2/5)
 ---
 local silentAimOn = false
 
@@ -276,38 +287,51 @@ pcall(function()
     end
 end)
 
+-- Main Frame (Identik Codium UI)
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.fromOffset(530, 330)
-mainFrame.Position = UDim2.new(0.5, -265, 0.5, -165)
+mainFrame.Size = UDim2.fromOffset(560, 345)
+mainFrame.Position = UDim2.new(0.5, -280, 0.5, -172)
 mainFrame.BackgroundColor3 = C_BG
 mainFrame.Visible = false
 mainFrame.ClipsDescendants = true
 mainFrame.Active = true
 mainFrame.Parent = gui
 addCorner(mainFrame, 12)
-addStroke(mainFrame, Color3.fromRGB(45, 45, 60), 1)
+addStroke(mainFrame, Color3.fromRGB(42, 43, 56), 1.2)
 
 local mainScale = Instance.new("UIScale")
 mainScale.Scale = 1
 mainScale.Parent = mainFrame
 
+-- Topbar Header (Mirip Gambar Codium)
 local topBar = Instance.new("Frame")
-topBar.Size = UDim2.new(1, 0, 0, 36)
+topBar.Size = UDim2.new(1, 0, 0, 38)
 topBar.BackgroundColor3 = C_SIDEBAR
 topBar.Parent = mainFrame
 addCorner(topBar, 12)
 
 local titleHub = Instance.new("TextLabel")
-titleHub.Size = UDim2.new(0.6, 0, 1, 0)
+titleHub.Size = UDim2.new(0.35, 0, 1, 0)
 titleHub.Position = UDim2.fromOffset(14, 0)
 titleHub.BackgroundTransparency = 1
-titleHub.Text = "VINZ KAZUMA | UNIVERSAL"
+titleHub.Text = "VINZ KAZUMA | FREE"
 titleHub.TextColor3 = C_WHITE
 titleHub.Font = Enum.Font.GothamBold
 titleHub.TextSize = 13
 titleHub.TextXAlignment = Enum.TextXAlignment.Left
 titleHub.Parent = topBar
+
+local centerSubtitle = Instance.new("TextLabel")
+centerSubtitle.Size = UDim2.new(0.4, 0, 1, 0)
+centerSubtitle.Position = UDim2.new(0.3, 0, 0, 0)
+centerSubtitle.BackgroundTransparency = 1
+centerSubtitle.Text = "Universal Hub\ndiscord.gg/vinzkazuma"
+centerSubtitle.TextColor3 = C_MUTED
+centerSubtitle.Font = Enum.Font.GothamMedium
+centerSubtitle.TextSize = 10
+centerSubtitle.TextWrapped = true
+centerSubtitle.Parent = topBar
 
 local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.fromOffset(26, 24)
@@ -320,15 +344,16 @@ closeBtn.TextSize = 12
 closeBtn.Parent = topBar
 addCorner(closeBtn, 6)
 
+-- Sidebar Kiri
 local sidebar = Instance.new("Frame")
-sidebar.Size = UDim2.new(0, 140, 1, -36)
-sidebar.Position = UDim2.new(0, 0, 0, 36)
+sidebar.Size = UDim2.new(0, 142, 1, -38)
+sidebar.Position = UDim2.new(0, 0, 0, 38)
 sidebar.BackgroundColor3 = C_SIDEBAR
 sidebar.BorderSizePixel = 0
 sidebar.Parent = mainFrame
 
 local tabContainer = Instance.new("ScrollingFrame")
-tabContainer.Size = UDim2.new(1, 0, 1, -48)
+tabContainer.Size = UDim2.new(1, 0, 1, -52)
 tabContainer.BackgroundTransparency = 1
 tabContainer.BorderSizePixel = 0
 tabContainer.ScrollBarThickness = 0
@@ -336,19 +361,20 @@ tabContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
 tabContainer.Parent = sidebar
 
 local tabListLayout = Instance.new("UIListLayout")
-tabListLayout.Padding = UDim.new(0, 4)
+tabListLayout.Padding = UDim.new(0, 3)
 tabListLayout.Parent = tabContainer
 
 local tabPadding = Instance.new("UIPadding")
-tabPadding.PaddingTop = UDim.new(0, 8)
+tabPadding.PaddingTop = UDim.new(0, 6)
 tabPadding.PaddingLeft = UDim.new(0, 8)
 tabPadding.PaddingRight = UDim.new(0, 8)
 tabPadding.Parent = tabContainer
 
+-- Profile Footer di Bawah Sidebar
 local userProfile = Instance.new("Frame")
-userProfile.Size = UDim2.new(1, 0, 0, 48)
-userProfile.Position = UDim2.new(0, 0, 1, -48)
-userProfile.BackgroundColor3 = Color3.fromRGB(18, 19, 25)
+userProfile.Size = UDim2.new(1, 0, 0, 50)
+userProfile.Position = UDim2.new(0, 0, 1, -50)
+userProfile.BackgroundColor3 = Color3.fromRGB(16, 17, 22)
 userProfile.BorderSizePixel = 0
 userProfile.Parent = sidebar
 
@@ -374,31 +400,61 @@ userName.Parent = userProfile
 
 local userRole = Instance.new("TextLabel")
 userRole.Size = UDim2.new(1, -48, 0, 14)
-userRole.Position = UDim2.new(0, 46, 0, 24)
+userRole.Position = UDim2.new(0, 46, 0, 25)
 userRole.BackgroundTransparency = 1
-userRole.Text = "VIP User"
-userRole.TextColor3 = C_ACCENT
+userRole.Text = "FREE USER"
+userRole.TextColor3 = C_CYAN
 userRole.Font = Enum.Font.GothamMedium
 userRole.TextSize = 10
 userRole.TextXAlignment = Enum.TextXAlignment.Left
 userRole.Parent = userProfile
 
+-- Bottom Status Bar Footer (Persis Gambar: Version Pill & Clock)
+local bottomFooter = Instance.new("Frame")
+bottomFooter.Size = UDim2.new(1, -142, 0, 32)
+bottomFooter.Position = UDim2.new(0, 142, 1, -32)
+bottomFooter.BackgroundColor3 = Color3.fromRGB(18, 19, 25)
+bottomFooter.BorderSizePixel = 0
+bottomFooter.Parent = mainFrame
+
+local verPill = Instance.new("TextLabel")
+verPill.Size = UDim2.fromOffset(56, 20)
+verPill.Position = UDim2.new(0.5, -60, 0.5, -10)
+verPill.BackgroundColor3 = C_CYAN
+verPill.Text = "v6.0"
+verPill.TextColor3 = Color3.fromRGB(10, 25, 20)
+verPill.Font = Enum.Font.GothamBold
+verPill.TextSize = 11
+verPill.Parent = bottomFooter
+addCorner(verPill, 10)
+
+local timerLabel = Instance.new("TextLabel")
+timerLabel.Size = UDim2.fromOffset(130, 20)
+timerLabel.Position = UDim2.new(1, -140, 0.5, -10)
+timerLabel.BackgroundTransparency = 1
+timerLabel.Text = "🕒 9999+ Hours"
+timerLabel.TextColor3 = C_MUTED
+timerLabel.Font = Enum.Font.GothamMedium
+timerLabel.TextSize = 10
+timerLabel.TextXAlignment = Enum.TextXAlignment.Right
+timerLabel.Parent = bottomFooter
+
 local pages = Instance.new("Frame")
-pages.Size = UDim2.new(1, -148, 1, -44)
-pages.Position = UDim2.new(0, 144, 0, 40)
+pages.Size = UDim2.new(1, -150, 1, -74)
+pages.Position = UDim2.new(0, 146, 0, 40)
 pages.BackgroundTransparency = 1
 pages.Parent = mainFrame
 
 local function toggleMenu(visible)
     if visible then
         mainFrame.Visible = true
-        mainScale.Scale = 0.85
-        TweenService:Create(mainScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+        mainScale.Scale = 0.82
+        TweenService:Create(mainScale, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
     else
-        local tw = TweenService:Create(mainScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85})
+        local tw = TweenService:Create(mainScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.82})
         tw:Play()
         tw.Completed:Connect(function()
-            if not mainFrame.Visible or mainScale.Scale <= 0.86 then
+            if not mainFrame.Visible or mainScale.Scale <= 0.84 then
                 mainFrame.Visible = false
             end
         end)
@@ -412,19 +468,40 @@ makeDraggable(mainLogo, mainLogo, function() toggleMenu(not mainFrame.Visible) e
 local tabs = {}
 local activeTab = nil
 
-local function createTab(tabName)
+local function addSidebarCategory(categoryTitle)
+    local catLabel = Instance.new("TextLabel")
+    catLabel.Size = UDim2.new(1, 0, 0, 18)
+    catLabel.BackgroundTransparency = 1
+    catLabel.Text = categoryTitle
+    catLabel.TextColor3 = Color3.fromRGB(90, 92, 110)
+    catLabel.Font = Enum.Font.GothamBold
+    catLabel.TextSize = 9
+    catLabel.TextXAlignment = Enum.TextXAlignment.Left
+    catLabel.Parent = tabContainer
+end
+
+local function createTab(tabName, iconGlyph)
     local tabBtn = Instance.new("TextButton")
-    tabBtn.Size = UDim2.new(1, 0, 0, 32)
+    tabBtn.Size = UDim2.new(1, 0, 0, 30)
     tabBtn.BackgroundColor3 = C_CARD
     tabBtn.BackgroundTransparency = 1
-    tabBtn.Text = "  " .. tabName
+    tabBtn.Text = "  " .. (iconGlyph or "•") .. "  " .. tabName
     tabBtn.TextColor3 = C_MUTED
     tabBtn.Font = Enum.Font.GothamMedium
-    tabBtn.TextSize = 12
+    tabBtn.TextSize = 11
     tabBtn.TextXAlignment = Enum.TextXAlignment.Left
     tabBtn.AutoButtonColor = false
     tabBtn.Parent = tabContainer
     addCorner(tabBtn, 6)
+
+    -- Indikator Titik Putih di Samping Tab Aktif (Persis Gambar)
+    local activeDot = Instance.new("Frame")
+    activeDot.Size = UDim2.fromOffset(6, 6)
+    activeDot.Position = UDim2.new(1, -12, 0.5, -3)
+    activeDot.BackgroundColor3 = C_WHITE
+    activeDot.Visible = false
+    activeDot.Parent = tabBtn
+    addCorner(activeDot, 3)
 
     local pageScroll = Instance.new("ScrollingFrame")
     pageScroll.Size = UDim2.fromScale(1, 1)
@@ -441,20 +518,22 @@ local function createTab(tabName)
     layout.Parent = pageScroll
 
     local pad = Instance.new("UIPadding")
-    pad.PaddingRight = UDim.new(0, 8)
+    pad.PaddingRight = UDim.new(0, 6)
     pad.PaddingTop = UDim.new(0, 2)
     pad.Parent = pageScroll
 
-    local tabObj = { Button = tabBtn, Page = pageScroll }
+    local tabObj = { Button = tabBtn, Page = pageScroll, Dot = activeDot }
 
     local function activate()
         if activeTab == tabObj then return end
         for _, t in pairs(tabs) do
             t.Page.Visible = false
+            t.Dot.Visible = false
             TweenService:Create(t.Button, TweenInfo.new(0.2), {TextColor3 = C_MUTED, BackgroundTransparency = 1}):Play()
         end
         activeTab = tabObj
         tabObj.Page.Visible = true
+        tabObj.Dot.Visible = true
         TweenService:Create(tabBtn, TweenInfo.new(0.2), {TextColor3 = C_WHITE, BackgroundTransparency = 0, BackgroundColor3 = C_CARD}):Play()
     end
 
@@ -465,6 +544,7 @@ local function createTab(tabName)
 
     local components = { Page = pageScroll }
 
+    -- Switch Kapsul Oval Codium (Persis Gambar Referensi)
     function components:AddToggle(title, default, callback)
         local card = Instance.new("Frame")
         card.Size = UDim2.new(1, 0, 0, 42)
@@ -473,38 +553,38 @@ local function createTab(tabName)
         addCorner(card, 8)
 
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -70, 1, 0)
+        label.Size = UDim2.new(1, -65, 1, 0)
         label.Position = UDim2.fromOffset(12, 0)
         label.BackgroundTransparency = 1
         label.Text = title
         label.TextColor3 = C_WHITE
         label.Font = Enum.Font.GothamMedium
-        label.TextSize = 12
+        label.TextSize = 11
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = card
 
         local switch = Instance.new("TextButton")
-        switch.Size = UDim2.fromOffset(44, 22)
-        switch.Position = UDim2.new(1, -54, 0.5, -11)
+        switch.Size = UDim2.fromOffset(40, 20)
+        switch.Position = UDim2.new(1, -52, 0.5, -10)
         switch.BackgroundColor3 = default and C_ACCENT or C_TOGGLE_OFF
         switch.Text = ""
         switch.Parent = card
-        addCorner(switch, 11)
+        addCorner(switch, 10)
 
         local knob = Instance.new("Frame")
-        knob.Size = UDim2.fromOffset(16, 16)
-        knob.Position = default and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+        knob.Size = UDim2.fromOffset(14, 14)
+        knob.Position = default and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
         knob.BackgroundColor3 = C_WHITE
         knob.Parent = switch
-        addCorner(knob, 8)
+        addCorner(knob, 7)
 
         local state = default
         switch.Activated:Connect(function()
             state = not state
-            local targetPos = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+            local targetPos = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
             local targetColor = state and C_ACCENT or C_TOGGLE_OFF
-            TweenService:Create(knob, TweenInfo.new(0.18), {Position = targetPos}):Play()
-            TweenService:Create(switch, TweenInfo.new(0.18), {BackgroundColor3 = targetColor}):Play()
+            TweenService:Create(knob, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = targetPos}):Play()
+            TweenService:Create(switch, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = targetColor}):Play()
             pcall(callback, state)
         end)
     end
@@ -522,7 +602,7 @@ local function createTab(tabName)
         label.BackgroundTransparency = 1
         label.TextColor3 = C_WHITE
         label.Font = Enum.Font.GothamMedium
-        label.TextSize = 12
+        label.TextSize = 11
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = card
 
@@ -534,23 +614,23 @@ local function createTab(tabName)
 
         local function makeBtn(txt, xOff)
             local b = Instance.new("TextButton")
-            b.Size = UDim2.fromOffset(28, 26)
-            b.Position = UDim2.new(1, xOff, 0.5, -13)
-            b.BackgroundColor3 = C_CARD_SUB
+            b.Size = UDim2.fromOffset(26, 24)
+            b.Position = UDim2.new(1, xOff, 0.5, -12)
+            b.BackgroundColor3 = C_CARD_INNER
             b.Text = txt
             b.TextColor3 = C_WHITE
             b.Font = Enum.Font.GothamBold
-            b.TextSize = 14
+            b.TextSize = 13
             b.Parent = card
             addCorner(b, 6)
             return b
         end
 
-        makeBtn("-", -68).Activated:Connect(function()
+        makeBtn("-", -64).Activated:Connect(function()
             value = math.clamp(value - step, min, max)
             refresh()
         end)
-        makeBtn("+", -34).Activated:Connect(function()
+        makeBtn("+", -32).Activated:Connect(function()
             value = math.clamp(value + step, min, max)
             refresh()
         end)
@@ -564,7 +644,7 @@ local function createTab(tabName)
         btn.Text = title
         btn.TextColor3 = C_WHITE
         btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 12
+        btn.TextSize = 11
         btn.Parent = pageScroll
         addCorner(btn, 8)
 
@@ -585,9 +665,9 @@ local function createTab(tabName)
         addCorner(card, 8)
 
         local box = Instance.new("TextBox")
-        box.Size = UDim2.new(1, -95, 0, 28)
-        box.Position = UDim2.new(0, 10, 0.5, -14)
-        box.BackgroundColor3 = C_CARD_SUB
+        box.Size = UDim2.new(1, -95, 0, 26)
+        box.Position = UDim2.new(0, 10, 0.5, -13)
+        box.BackgroundColor3 = C_CARD_INNER
         box.PlaceholderText = placeholder
         box.PlaceholderColor3 = C_MUTED
         box.Text = ""
@@ -598,8 +678,8 @@ local function createTab(tabName)
         addCorner(box, 6)
 
         local submit = Instance.new("TextButton")
-        submit.Size = UDim2.fromOffset(72, 28)
-        submit.Position = UDim2.new(1, -80, 0.5, -14)
+        submit.Size = UDim2.fromOffset(72, 26)
+        submit.Position = UDim2.new(1, -80, 0.5, -13)
         submit.BackgroundColor3 = C_ACCENT
         submit.Text = btnText
         submit.TextColor3 = C_WHITE
@@ -617,9 +697,10 @@ local function createTab(tabName)
 end
 
 ---
--- TAB 1: PLAYER & COMBAT (PART 3/5)
+-- TAB COMBAT: FLING AURA, TOUCH FLING, TELEPORT ACTIVE PLAYERS LIST (PART 3/5)
 ---
-local tabPlayer = createTab("Player")
+addSidebarCategory("COMBAT")
+local tabPlayer = createTab("Player", "⚔️")
 
 local camAimOn = false
 local camAimConn = nil
@@ -643,7 +724,7 @@ tabPlayer:AddToggle("Auto Aim (Via Peluru)", false, function(on)
     silentAimOn = on
 end)
 
--- Walk Fling (Bypass Touch Fling Physics)
+-- 1. Walk Fling (Touch Fling Normal Bawaan)
 local hiddenfling = false
 local flingThread = nil
 
@@ -672,6 +753,90 @@ tabPlayer:AddToggle("Walk Fling (Touch Fling)", false, function(on)
         flingThread = coroutine.create(touchFlingLoop)
         coroutine.resume(flingThread)
     end
+end)
+
+-- 2. FITUR BARU: FLING AURA (RADIUS ADJUSTABLE + VISUAL AURA ZONE)
+local flingAuraOn = false
+local flingAuraRadius = 15
+local flingAuraVisual = nil
+local flingAuraThread = nil
+
+local function updateAuraVisual()
+    if flingAuraVisual then
+        flingAuraVisual.Radius = flingAuraRadius
+    end
+end
+
+local function flingAuraLoop()
+    local movel = 0.1
+    while flingAuraOn do
+        RunService.Heartbeat:Wait()
+        local c = lp.Character
+        local hrp = c and c:FindFirstChild("HumanoidRootPart")
+        local hum = c and c:FindFirstChildOfClass("Humanoid")
+
+        if hrp and hum and hum.Health > 0 then
+            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+
+            local myPos = hrp.Position
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= lp and p.Character then
+                    local eHrp = p.Character:FindFirstChild("HumanoidRootPart")
+                    local eHum = p.Character:FindFirstChildOfClass("Humanoid")
+                    if eHrp and eHum and eHum.Health > 0 then
+                        local dist = (eHrp.Position - myPos).Magnitude
+                        if dist <= flingAuraRadius then
+                            local oldVel = hrp.Velocity
+                            local oldCF = hrp.CFrame
+                            -- Desync pulse pada musuh di dalam radius
+                            hrp.CFrame = eHrp.CFrame
+                            hrp.Velocity = Vector3.new(0, 15000, 0) * 10
+                            RunService.RenderStepped:Wait()
+                            hrp.Velocity = oldVel
+                            hrp.CFrame = oldCF
+                            RunService.Stepped:Wait()
+                            hrp.Velocity = oldVel + Vector3.new(0, movel, 0)
+                            movel = -movel
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+tabPlayer:AddToggle("Fling Aura (Radius Fling)", false, function(on)
+    flingAuraOn = on
+    local hrp = getRoot()
+    if on then
+        if hrp and not flingAuraVisual then
+            flingAuraVisual = Instance.new("SelectionSphere")
+            flingAuraVisual.Name = "VK_FlingAura"
+            flingAuraVisual.Adornee = hrp
+            flingAuraVisual.Color3 = C_CYAN
+            flingAuraVisual.Transparency = 0.65
+            flingAuraVisual.Parent = hrp
+            updateAuraVisual()
+        end
+        flingAuraThread = coroutine.create(flingAuraLoop)
+        coroutine.resume(flingAuraThread)
+    else
+        if flingAuraVisual then
+            flingAuraVisual:Destroy()
+            flingAuraVisual = nil
+        end
+        local hum = getHum()
+        if hum then
+            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+        end
+    end
+end)
+
+tabPlayer:AddStepper("Fling Aura Radius", 5, 50, 5, 15, function(v)
+    flingAuraRadius = v
+    updateAuraVisual()
 end)
 
 local immuneOn = false
@@ -799,57 +964,102 @@ end)
 tabPlayer:AddStepper("Hitbox Size", 2, 60, 2, 15, function(v) hitboxSize = v end)
 tabPlayer:AddStepper("Hitbox Vis (0=Hilang)", 0, 10, 1, 0, function(v) hitboxAlpha = v end)
 
-local spectateIndex = 1
-local function spectateTarget(p)
-    local cam = workspace.CurrentCamera
-    if not cam then return end
-    if p and p.Character and p.Character:FindFirstChildOfClass("Humanoid") then
-        cam.CameraSubject = p.Character:FindFirstChildOfClass("Humanoid")
-    else
-        local myHum = getHum()
-        if myHum then cam.CameraSubject = myHum end
+-- 3. FITUR BARU: TELEPORT VIA ACTIVE PLAYER LIST (AUTO REFRESH 2 DETIK)
+local tpCard = Instance.new("Frame")
+tpCard.Size = UDim2.new(1, 0, 0, 160)
+tpCard.BackgroundColor3 = C_CARD
+tpCard.Parent = tabPlayer.Page
+addCorner(tpCard, 8)
+
+local tpTitle = Instance.new("TextLabel")
+tpTitle.Size = UDim2.new(1, -16, 0, 24)
+tpTitle.Position = UDim2.fromOffset(8, 4)
+tpTitle.BackgroundTransparency = 1
+tpTitle.Text = "Active Players List (Klik untuk Teleport):"
+tpTitle.TextColor3 = C_WHITE
+tpTitle.Font = Enum.Font.GothamBold
+tpTitle.TextSize = 11
+tpTitle.TextXAlignment = Enum.TextXAlignment.Left
+tpTitle.Parent = tpCard
+
+local playerScroll = Instance.new("ScrollingFrame")
+playerScroll.Size = UDim2.new(1, -16, 1, -34)
+playerScroll.Position = UDim2.fromOffset(8, 28)
+playerScroll.BackgroundTransparency = 1
+playerScroll.BorderSizePixel = 0
+playerScroll.ScrollBarThickness = 2
+playerScroll.ScrollBarImageColor3 = C_ACCENT
+playerScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+playerScroll.Parent = tpCard
+
+local pListLayout = Instance.new("UIListLayout")
+pListLayout.Padding = UDim.new(0, 4)
+pListLayout.Parent = playerScroll
+
+local function refreshActivePlayersList()
+    for _, child in ipairs(playerScroll:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp then
+            local row = Instance.new("Frame")
+            row.Size = UDim2.new(1, -4, 0, 32)
+            row.BackgroundColor3 = C_CARD_INNER
+            row.Parent = playerScroll
+            addCorner(row, 6)
+
+            local pThumb = Instance.new("ImageLabel")
+            pThumb.Size = UDim2.fromOffset(24, 24)
+            pThumb.Position = UDim2.new(0, 4, 0.5, -12)
+            pThumb.BackgroundTransparency = 1
+            pThumb.Image = Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+            pThumb.Parent = row
+            addCorner(pThumb, 12)
+
+            local pName = Instance.new("TextLabel")
+            pName.Size = UDim2.new(1, -95, 1, 0)
+            pName.Position = UDim2.fromOffset(34, 0)
+            pName.BackgroundTransparency = 1
+            pName.Text = string.format("%s (@%s)", p.DisplayName, p.Name)
+            pName.TextColor3 = C_WHITE
+            pName.Font = Enum.Font.GothamMedium
+            pName.TextSize = 10
+            pName.TextXAlignment = Enum.TextXAlignment.Left
+            pName.TextTruncate = Enum.TextTruncate.AtEnd
+            pName.Parent = row
+
+            local tpBtn = Instance.new("TextButton")
+            tpBtn.Size = UDim2.fromOffset(48, 22)
+            tpBtn.Position = UDim2.new(1, -54, 0.5, -11)
+            tpBtn.BackgroundColor3 = C_ACCENT
+            tpBtn.Text = "TP"
+            tpBtn.TextColor3 = C_WHITE
+            tpBtn.Font = Enum.Font.GothamBold
+            tpBtn.TextSize = 11
+            tpBtn.Parent = row
+            addCorner(tpBtn, 5)
+
+            tpBtn.Activated:Connect(function()
+                if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    local myRoot = getRoot()
+                    if myRoot then
+                        myRoot.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+                    end
+                end
+            end)
+        end
     end
 end
 
-tabPlayer:AddInput("Ketik Nama / Display Spectate...", "Spectate", function(query)
-    if query == "" then return end
-    query = query:lower()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp and (p.Name:lower():find(query) or p.DisplayName:lower():find(query)) then
-            spectateTarget(p)
-            return
-        end
+task.spawn(function()
+    while true do
+        refreshActivePlayersList()
+        task.wait(2)
     end
 end)
 
-tabPlayer:AddButton("Next Player Spectate (▶)", function()
-    local playerList = {}
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp then table.insert(playerList, p) end
-    end
-    if #playerList > 0 then
-        spectateIndex = (spectateIndex % #playerList) + 1
-        spectateTarget(playerList[spectateIndex])
-    end
-end)
-
-tabPlayer:AddButton("Prev Player Spectate (◀)", function()
-    local playerList = {}
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp then table.insert(playerList, p) end
-    end
-    if #playerList > 0 then
-        spectateIndex = spectateIndex - 1
-        if spectateIndex < 1 then spectateIndex = #playerList end
-        spectateTarget(playerList[spectateIndex])
-    end
-end)
-
-tabPlayer:AddButton("Stop Spectate (Kamera Saya)", function()
-    spectateTarget(lp)
-end)
-
-tabPlayer:AddInput("Ketik Nama / Display Player...", "Teleport", function(query)
+tabPlayer:AddInput("Cari / Teleport Manual Nickname...", "Teleport", function(query)
     if query == "" then return end
     query = query:lower()
     for _, p in ipairs(Players:GetPlayers()) do
@@ -959,9 +1169,10 @@ tabPlayer:AddToggle("Player ESP + Distance", false, function(on)
 end)
 
 ---
--- TAB 2: MOVEMENT & TAB 3: SUPER RING / TORNADO (PART 4/5)
+-- TAB MOVEMENT & TAB SUPER RING / TORNADO (PART 4/5)
 ---
-local tabMovement = createTab("Movement")
+addSidebarCategory("MOVEMENT")
+local tabMovement = createTab("Movement", "🏃")
 
 local speedOn, speedVal = false, 16
 local jumpOn = false
@@ -1150,9 +1361,10 @@ end)
 tabMovement:AddStepper("Fly Speed", 10, 250, 10, 50, function(v) flySpeed = v end)
 
 ---
--- TAB 3: SUPER RING (TORNADO PARTS FLING)
+-- TAB SUPER RING (TORNADO PARTS FLING)
 ---
-local tabRing = createTab("Super Ring")
+addSidebarCategory("PHYSICS")
+local tabRing = createTab("Super Ring", "🌪️")
 
 local ringConfig = {
     radius = 50,
@@ -1245,9 +1457,10 @@ tabRing:AddStepper("Attract Strength", 100, 5000, 200, 1000, function(v)
 end)
 
 ---
--- TAB 4: CAMERA, TAB 5: CLICKER, TAB 6: MISC & LAUNCHER (PART 5/5)
+-- TAB CAMERA, TAB CLICKER, TAB MISC & LAUNCHER (PART 5/5)
 ---
-local tabVisuals = createTab("Camera")
+addSidebarCategory("VISUALS")
+local tabVisuals = createTab("Camera", "📷")
 
 local freezeCamOn = false
 local freezeCamCF = nil
@@ -1459,9 +1672,10 @@ tabVisuals:AddToggle("Click TP Tool", false, function(on)
 end)
 
 ---
--- TAB 5: AUTO CLICKER
+-- TAB AUTO CLICKER
 ---
-local tabClicker = createTab("Clicker")
+addSidebarCategory("TOOLS")
+local tabClicker = createTab("Clicker", "👆")
 
 local clickerOn = false
 local clickerSpeed = 50
@@ -1552,9 +1766,10 @@ task.spawn(function()
 end)
 
 ---
--- TAB 6: MISC & SERVER
+-- TAB MISC & SERVER
 ---
-local tabMisc = createTab("Misc")
+addSidebarCategory("SYSTEM")
+local tabMisc = createTab("Misc", "⚙️")
 
 tabMisc:AddToggle("Show FPS & Ping Overlay", true, function(on)
     statsFrame.Visible = on
@@ -1667,12 +1882,12 @@ tabMisc:AddButton("Rejoin Server", function()
 end)
 
 ---
--- MENJALANKAN ANIMASI INTRO & BOOT
+-- EKSEKUSI ANIMASI INTRO
 ---
 task.spawn(function()
     task.wait(0.3)
     local t1 = TweenService:Create(introCenter, TweenInfo.new(0.7, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        Position = UDim2.new(0.5, -130, 0.5, -30)
+        Position = UDim2.new(0.5, -140, 0.5, -35)
     })
     t1:Play()
     t1.Completed:Wait()
@@ -1680,7 +1895,7 @@ task.spawn(function()
     task.wait(0.2)
     local t2 = TweenService:Create(introText, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         TextTransparency = 0,
-        Position = UDim2.new(0, 60, 0.5, -20)
+        Position = UDim2.new(0, 68, 0.5, -22)
     })
     t2:Play()
     t2.Completed:Wait()
@@ -1692,8 +1907,8 @@ task.spawn(function()
     }):Play()
 
     local t3 = TweenService:Create(introCenter, TweenInfo.new(0.65, Enum.EasingStyle.Quart, Enum.EasingDirection.InOut), {
-        Position = UDim2.new(0, 15, 0.4, 0),
-        Size = UDim2.fromOffset(46, 46)
+        Position = UDim2.new(0, 16, 0.4, 0),
+        Size = UDim2.fromOffset(48, 48)
     })
     t3:Play()
     t3.Completed:Wait()
@@ -1703,3 +1918,4 @@ task.spawn(function()
 
     toggleMenu(true)
 end)
+

@@ -1,0 +1,1384 @@
+--[[
+    Auto Combat Suite — Auto Parry & Auto Dodge
+    Target runtime: Delta Executor (Luau) / Roblox Client
+    All UI built from raw ScreenGui + TweenService. Zero external deps.
+    Unload button performs full teardown — no leaks.
+
+    SPLIT FILE — 3 parts, concatenate in order into one .lua
+    Part 1: services, maid, theme, ui helpers, toast, button
+    Part 2: toggle, slider, dropdown, label, separator, window class
+    Part 3: state, threat scanner, solver, actuators, heartbeat, visualizer, ui build, loops
+--]]
+
+-- ============================================================
+-- SERVICES
+-- ============================================================
+local Players             = game:GetService("Players")
+local RunService          = game:GetService("RunService")
+local UserInputService    = game:GetService("UserInputService")
+local TweenService        = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local Stats               = game:GetService("Stats")
+local Workspace           = game:GetService("Workspace")
+local Lighting            = game:GetService("Lighting")
+local CoreGui             = game:GetService("CoreGui")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- ============================================================
+-- MAID PATTERN
+-- ============================================================
+local Maid = {}
+Maid.__index = Maid
+function Maid.new()
+    return setmetatable({ _tasks = {} }, Maid)
+end
+function Maid:Give(task)
+    if task ~= nil then table.insert(self._tasks, task) end
+    return task
+end
+function Maid:Clean()
+    for i = #self._tasks, 1, -1 do
+        local t = self._tasks[i]
+        pcall(function()
+            if typeof(t) == "RBXScriptConnection" then
+                t:Disconnect()
+            elseif typeof(t) == "Instance" then
+                t:Destroy()
+            elseif type(t) == "function" then
+                t()
+            elseif type(t) == "table" then
+                if t.Clean then t:Clean()
+                elseif t.Destroy then t:Destroy()
+                elseif t.Disconnect then t:Disconnect()
+                end
+            end
+        end)
+        self._tasks[i] = nil
+    end
+end
+
+local GlobalMaid = Maid.new()
+
+-- ============================================================
+-- THEME
+-- ============================================================
+local Theme = {
+    Base       = Color3.fromRGB(15, 23, 42),      -- #0F172A
+    Surface    = Color3.fromRGB(30, 41, 59),
+    SurfaceAlt = Color3.fromRGB(51, 65, 85),
+    Accent     = Color3.fromRGB(59, 130, 246),    -- #3B82F6
+    AccentDim  = Color3.fromRGB(37, 99, 235),
+    Text       = Color3.fromRGB(241, 245, 249),
+    TextDim    = Color3.fromRGB(148, 163, 184),
+    Success    = Color3.fromRGB(34, 197, 94),
+    Danger     = Color3.fromRGB(239, 68, 68),
+    Warning    = Color3.fromRGB(245, 158, 11),
+    Border     = Color3.fromRGB(71, 85, 105),
+    Font       = Enum.Font.Gotham,
+    FontBold   = Enum.Font.GothamBold,
+    Tween      = TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+    TweenFast  = TweenInfo.new(0.12, Enum.EasingStyle.Quad,  Enum.EasingDirection.Out),
+}
+
+-- ============================================================
+-- GUI PARENT RESOLUTION
+-- ============================================================
+local function getGuiParent()
+    if gethui then
+        local ok, hui = pcall(gethui)
+        if ok and hui then return hui end
+    end
+    local ok, cg = pcall(function() return CoreGui end)
+    if ok and cg then return cg end
+    return LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- ============================================================
+-- UI HELPERS
+-- ============================================================
+local function corner(parent, r)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, r or 6)
+    c.Parent = parent
+    return c
+end
+
+local function stroke(parent, color, thick, trans)
+    local s = Instance.new("UIStroke")
+    s.Color           = color or Theme.Border
+    s.Thickness       = thick or 1
+    s.Transparency    = trans or 0.35
+    s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    s.Parent          = parent
+    return s
+end
+
+local function makeDraggable(frame, handle, maid)
+    maid = maid or Maid.new()
+    handle = handle or frame
+    local dragging, dragStart, startPos
+
+    maid:Give(handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging   = true
+            dragStart  = input.Position
+            startPos   = frame.Position
+        end
+    end))
+
+    maid:Give(UserInputService.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end))
+
+    maid:Give(UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end))
+
+    return maid
+end
+
+-- ============================================================
+-- UI LIBRARY
+-- ============================================================
+local Lib = {
+    _toastGui       = nil,
+    _activeToasts   = {},
+}
+
+-- ---------- Toast ----------
+local function repositionToasts()
+    for i, t in ipairs(Lib._activeToasts) do
+        if t and t.Parent then
+            TweenService:Create(t, Theme.Tween, {
+                Position = UDim2.new(1, -300, 1, -80 - (i - 1) * 60),
+            }):Play()
+        end
+    end
+end
+
+function Lib.toast(msg, kind)
+    kind = kind or "info"
+    local color = Theme.Accent
+    if kind == "success" then color = Theme.Success
+    elseif kind == "error" then color = Theme.Danger
+    elseif kind == "warning" then color = Theme.Warning
+    end
+
+    if not Lib._toastGui or not Lib._toastGui.Parent then
+        local sg = Instance.new("ScreenGui")
+        sg.Name           = "AutoCombat_Toast"
+        sg.ResetOnSpawn   = false
+        sg.IgnoreGuiInset = true
+        sg.DisplayOrder   = 999
+        sg.Parent         = getGuiParent()
+        Lib._toastGui = sg
+        GlobalMaid:Give(sg)
+    end
+
+    local toast = Instance.new("Frame")
+    toast.Size                   = UDim2.fromOffset(280, 52)
+    toast.Position               = UDim2.new(1, 20, 1, -80)
+    toast.BackgroundColor3       = Theme.Surface
+    toast.BackgroundTransparency = 0.08
+    toast.BorderSizePixel        = 0
+    toast.Parent                 = Lib._toastGui
+    corner(toast, 8)
+    stroke(toast, color, 1, 0.3)
+
+    local accent = Instance.new("Frame")
+    accent.Size             = UDim2.fromOffset(4, 52)
+    accent.BackgroundColor3 = color
+    accent.BorderSizePixel  = 0
+    accent.Parent           = toast
+    corner(accent, 8)
+
+    local tl = Instance.new("TextLabel")
+    tl.Size                   = UDim2.new(1, -24, 1, 0)
+    tl.Position               = UDim2.fromOffset(16, 0)
+    tl.BackgroundTransparency = 1
+    tl.Text                   = msg
+    tl.TextColor3             = Theme.Text
+    tl.Font                   = Theme.Font
+    tl.TextSize               = 12
+    tl.TextXAlignment         = Enum.TextXAlignment.Left
+    tl.TextWrapped            = true
+    tl.Parent                 = toast
+
+    table.insert(Lib._activeToasts, toast)
+    repositionToasts()
+
+    task.delay(3, function()
+        if not toast or not toast.Parent then return end
+        for i, t in ipairs(Lib._activeToasts) do
+            if t == toast then
+                table.remove(Lib._activeToasts, i)
+                break
+            end
+        end
+        TweenService:Create(toast, Theme.Tween, {
+            Position             = UDim2.new(1, 20, 1, toast.Position.Y.Offset),
+            BackgroundTransparency = 1,
+        }):Play()
+        task.delay(0.3, function()
+            if toast then toast:Destroy() end
+            repositionToasts()
+        end)
+    end)
+
+    return toast
+end
+
+-- ---------- Button ----------
+function Lib.addButton(parent, opts)
+    opts = opts or {}
+    local btn = Instance.new("TextButton")
+    btn.Size             = UDim2.new(1, 0, 0, 34)
+    btn.BackgroundColor3 = Theme.Accent
+    btn.BorderSizePixel  = 0
+    btn.Text             = opts.text or "Button"
+    btn.TextColor3       = Theme.Text
+    btn.Font             = Theme.FontBold
+    btn.TextSize         = 13
+    btn.AutoButtonColor  = false
+    btn.Parent           = parent
+    corner(btn, 8)
+    stroke(btn, Theme.Accent, 1, 0.5)
+
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, Theme.TweenFast, { BackgroundColor3 = Theme.AccentDim }):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, Theme.TweenFast, { BackgroundColor3 = Theme.Accent }):Play()
+    end)
+    btn.MouseButton1Click:Connect(function()
+        if opts.callback then task.spawn(opts.callback) end
+    end)
+    return btn
+end
+
+-- ---------- Toggle ----------
+function Lib.addToggle(parent, opts)
+    opts = opts or {}
+    local state = { value = opts.default or false }
+
+    local frame = Instance.new("Frame")
+    frame.Size                   = UDim2.new(1, 0, 0, 36)
+    frame.BackgroundColor3       = Theme.Surface
+    frame.BackgroundTransparency = 0.4
+    frame.BorderSizePixel        = 0
+    frame.Parent                 = parent
+    corner(frame, 8)
+    stroke(frame, Theme.Border, 1, 0.6)
+
+    local statusDot = Instance.new("Frame")
+    statusDot.Size             = UDim2.fromOffset(6, 6)
+    statusDot.Position         = UDim2.new(0, 8, 0.5, -3)
+    statusDot.BackgroundColor3 = Theme.TextDim
+    statusDot.BorderSizePixel  = 0
+    statusDot.Parent           = frame
+    corner(statusDot, 3)
+
+    local label = Instance.new("TextLabel")
+    label.Size                   = UDim2.new(1, -78, 1, 0)
+    label.Position               = UDim2.fromOffset(22, 0)
+    label.BackgroundTransparency = 1
+    label.Text                   = opts.text or "Toggle"
+    label.TextColor3             = Theme.Text
+    label.Font                   = Theme.Font
+    label.TextSize               = 13
+    label.TextXAlignment         = Enum.TextXAlignment.Left
+    label.Parent                 = frame
+
+    local track = Instance.new("Frame")
+    track.Size             = UDim2.fromOffset(42, 20)
+    track.Position         = UDim2.new(1, -54, 0.5, -10)
+    track.BackgroundColor3 = Theme.SurfaceAlt
+    track.BorderSizePixel  = 0
+    track.Parent           = frame
+    corner(track, 10)
+
+    local knob = Instance.new("Frame")
+    knob.Size             = UDim2.fromOffset(14, 14)
+    knob.Position         = UDim2.fromOffset(3, 3)
+    knob.BackgroundColor3 = Theme.Text
+    knob.BorderSizePixel  = 0
+    knob.Parent           = track
+    corner(knob, 7)
+
+    local function apply(v, animate)
+        state.value = v
+        local knobPos   = v and UDim2.fromOffset(25, 3) or UDim2.fromOffset(3, 3)
+        local trackCol  = v and Theme.Accent or Theme.SurfaceAlt
+        local dotCol    = v and Theme.Success or Theme.TextDim
+        if animate then
+            TweenService:Create(knob,      Theme.Tween, { Position = knobPos }):Play()
+            TweenService:Create(track,     Theme.Tween, { BackgroundColor3 = trackCol }):Play()
+            TweenService:Create(statusDot, Theme.Tween, { BackgroundColor3 = dotCol }):Play()
+        else
+            knob.Position           = knobPos
+            track.BackgroundColor3  = trackCol
+            statusDot.BackgroundColor3 = dotCol
+        end
+        if opts.callback then task.spawn(function() opts.callback(v) end) end
+    end
+
+    local hit = Instance.new("TextButton")
+    hit.Size                   = UDim2.new(1, 0, 1, 0)
+    hit.BackgroundTransparency = 1
+    hit.Text                   = ""
+    hit.ZIndex                 = 2
+    hit.Parent                 = frame
+    hit.MouseButton1Click:Connect(function() apply(not state.value, true) end)
+
+    apply(state.value, false)
+    return {
+        set = function(_, v) apply(v, true) end,
+        get = function(_) return state.value end,
+    }
+end
+
+-- ---------- Slider ----------
+function Lib.addSlider(parent, opts)
+    opts = opts or {}
+    local minVal = opts.min or 0
+    local maxVal = opts.max or 100
+    local step   = opts.step or 0
+    local current = math.clamp(opts.default or minVal, minVal, maxVal)
+
+    local frame = Instance.new("Frame")
+    frame.Size                   = UDim2.new(1, 0, 0, 54)
+    frame.BackgroundColor3       = Theme.Surface
+    frame.BackgroundTransparency = 0.4
+    frame.BorderSizePixel        = 0
+    frame.Parent                 = parent
+    corner(frame, 8)
+    stroke(frame, Theme.Border, 1, 0.6)
+
+    local label = Instance.new("TextLabel")
+    label.Size                   = UDim2.new(1, -90, 0, 20)
+    label.Position               = UDim2.fromOffset(12, 6)
+    label.BackgroundTransparency = 1
+    label.Text                   = opts.text or "Slider"
+    label.TextColor3             = Theme.Text
+    label.Font                   = Theme.Font
+    label.TextSize               = 13
+    label.TextXAlignment         = Enum.TextXAlignment.Left
+    label.Parent                 = frame
+
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Size                   = UDim2.fromOffset(72, 20)
+    valueLabel.Position               = UDim2.new(1, -84, 0, 6)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text                   = tostring(current)
+    valueLabel.TextColor3             = Theme.Accent
+    valueLabel.Font                   = Theme.FontBold
+    valueLabel.TextSize               = 13
+    valueLabel.TextXAlignment         = Enum.TextXAlignment.Right
+    valueLabel.Parent                 = frame
+
+    local track = Instance.new("Frame")
+    track.Size             = UDim2.new(1, -24, 0, 6)
+    track.Position         = UDim2.new(0, 12, 1, -18)
+    track.BackgroundColor3 = Theme.SurfaceAlt
+    track.BorderSizePixel  = 0
+    track.Parent           = frame
+    corner(track, 3)
+
+    local fill = Instance.new("Frame")
+    fill.Size             = UDim2.new(0, 0, 1, 0)
+    fill.BackgroundColor3 = Theme.Accent
+    fill.BorderSizePixel  = 0
+    fill.Parent           = track
+    corner(fill, 3)
+
+    local knob = Instance.new("Frame")
+    knob.Size             = UDim2.fromOffset(14, 14)
+    knob.AnchorPoint      = Vector2.new(0.5, 0.5)
+    knob.Position         = UDim2.new(0, 0, 0.5, 0)
+    knob.BackgroundColor3 = Theme.Text
+    knob.BorderSizePixel  = 0
+    knob.Parent           = track
+    corner(knob, 7)
+    stroke(knob, Theme.Accent, 2, 0)
+
+    local function snap(v)
+        if step > 0 then return math.floor(v / step + 0.5) * step end
+        return v
+    end
+
+    local function update(v, animate, fire)
+        v = math.clamp(snap(v), minVal, maxVal)
+        current = v
+        local ratio = (maxVal > minVal) and (v - minVal) / (maxVal - minVal) or 0
+        local tSize = UDim2.new(ratio, 0, 1, 0)
+        local tPos  = UDim2.new(ratio, 0, 0.5, 0)
+        if animate then
+            TweenService:Create(fill, Theme.TweenFast, { Size = tSize }):Play()
+            TweenService:Create(knob, Theme.TweenFast, { Position = tPos }):Play()
+        else
+            fill.Size   = tSize
+            knob.Position = tPos
+        end
+        valueLabel.Text = tostring(math.floor(v * 100 + 0.5) / 100)
+        if fire and opts.callback then task.spawn(function() opts.callback(v) end) end
+    end
+
+    local dragging = false
+    local function setFromMouse(xPos)
+        local ax = track.AbsolutePosition.X
+        local w  = track.AbsoluteSize.X
+        if w <= 0 then return end
+        local ratio = math.clamp((xPos - ax) / w, 0, 1)
+        update(minVal + ratio * (maxVal - minVal), false, true)
+    end
+
+    local hit = Instance.new("TextButton")
+    hit.Size                   = UDim2.new(1, 0, 1, 0)
+    hit.BackgroundTransparency = 1
+    hit.Text                   = ""
+    hit.ZIndex                 = 2
+    hit.Parent                 = frame
+
+    hit.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            setFromMouse(input.Position.X)
+        end
+    end)
+
+    GlobalMaid:Give(UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+            or input.UserInputType == Enum.UserInputType.Touch) then
+            setFromMouse(input.Position.X)
+        end
+    end))
+
+    GlobalMaid:Give(UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end))
+
+    update(current, false, false)
+    return {
+        set = function(_, v) update(v, true, true) end,
+        get = function(_) return current end,
+    }
+end
+
+-- ---------- Dropdown ----------
+function Lib.addDropdown(parent, opts)
+    opts = opts or {}
+    local options = opts.options or {}
+    local current = opts.default or options[1]
+    local expanded = false
+
+    local container = Instance.new("Frame")
+    container.Size                   = UDim2.new(1, 0, 0, 36)
+    container.BackgroundColor3       = Theme.Surface
+    container.BackgroundTransparency = 0.4
+    container.BorderSizePixel        = 0
+    container.ClipsDescendants       = false
+    container.Parent                 = parent
+    corner(container, 8)
+    stroke(container, Theme.Border, 1, 0.6)
+
+    local header = Instance.new("TextButton")
+    header.Size                   = UDim2.new(1, 0, 0, 36)
+    header.BackgroundTransparency = 1
+    header.Text                   = ""
+    header.AutoButtonColor        = false
+    header.Parent                 = container
+
+    local label = Instance.new("TextLabel")
+    label.Size                   = UDim2.new(1, -100, 1, 0)
+    label.Position               = UDim2.fromOffset(12, 0)
+    label.BackgroundTransparency = 1
+    label.Text                   = opts.text or "Select"
+    label.TextColor3             = Theme.Text
+    label.Font                   = Theme.Font
+    label.TextSize               = 13
+    label.TextXAlignment         = Enum.TextXAlignment.Left
+    label.Parent                 = header
+
+    local currentLabel = Instance.new("TextLabel")
+    currentLabel.Size                   = UDim2.new(0, 66, 1, 0)
+    currentLabel.Position               = UDim2.new(1, -88, 0, 0)
+    currentLabel.BackgroundTransparency = 1
+    currentLabel.Text                   = tostring(current)
+    currentLabel.TextColor3             = Theme.Accent
+    currentLabel.Font                   = Theme.FontBold
+    currentLabel.TextSize               = 12
+    currentLabel.TextXAlignment         = Enum.TextXAlignment.Right
+    currentLabel.Parent                 = header
+
+    local arrow = Instance.new("TextLabel")
+    arrow.Size                   = UDim2.fromOffset(16, 16)
+    arrow.Position               = UDim2.new(1, -22, 0.5, -8)
+    arrow.BackgroundTransparency = 1
+    arrow.Text                   = "▾"
+    arrow.TextColor3             = Theme.TextDim
+    arrow.TextSize               = 12
+    arrow.Parent                 = header
+
+    local list = Instance.new("Frame")
+    list.Size                   = UDim2.new(1, 0, 0, 0)
+    list.Position               = UDim2.new(0, 0, 1, 4)
+    list.BackgroundColor3       = Theme.Surface
+    list.BackgroundTransparency = 0.05
+    list.BorderSizePixel        = 0
+    list.ClipsDescendants       = true
+    list.Visible                = false
+    list.ZIndex                 = 20
+    list.Parent                 = container
+    corner(list, 8)
+    stroke(list, Theme.Accent, 1, 0.4)
+
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Padding   = UDim.new(0, 2)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Parent    = list
+
+    local listPad = Instance.new("UIPadding")
+    listPad.PaddingTop    = UDim.new(0, 4)
+    listPad.PaddingBottom = UDim.new(0, 4)
+    listPad.Parent        = list
+
+    local optionButtons = {}
+
+    local function setValue(v, fire)
+        current = v
+        currentLabel.Text = tostring(v)
+        for opt, btn in pairs(optionButtons) do
+            if opt == v then
+                btn.BackgroundColor3 = Theme.Accent
+                btn.TextColor3       = Theme.Text
+            else
+                btn.BackgroundColor3 = Theme.SurfaceAlt
+                btn.TextColor3       = Theme.TextDim
+            end
+        end
+        if fire and opts.callback then task.spawn(function() opts.callback(v) end) end
+    end
+
+    local function close()
+        expanded = false
+        TweenService:Create(list, Theme.Tween, { Size = UDim2.new(1, 0, 0, 0) }):Play()
+        TweenService:Create(arrow, Theme.Tween, { Rotation = 0 }):Play()
+        task.delay(0.25, function() if list then list.Visible = false end end)
+    end
+
+    for _, opt in ipairs(options) do
+        local ob = Instance.new("TextButton")
+        ob.Size             = UDim2.new(1, -8, 0, 26)
+        ob.Position         = UDim2.fromOffset(4, 0)
+        ob.BackgroundColor3 = Theme.SurfaceAlt
+        ob.BorderSizePixel  = 0
+        ob.Text             = "  " .. tostring(opt)
+        ob.TextColor3       = Theme.TextDim
+        ob.Font             = Theme.Font
+        ob.TextSize         = 12
+        ob.TextXAlignment   = Enum.TextXAlignment.Left
+        ob.AutoButtonColor  = false
+        ob.ZIndex           = 21
+        ob.Parent           = list
+        corner(ob, 6)
+        optionButtons[opt] = ob
+
+        ob.MouseEnter:Connect(function()
+            if current ~= opt then
+                TweenService:Create(ob, Theme.TweenFast, { BackgroundColor3 = Theme.Border }):Play()
+            end
+        end)
+        ob.MouseLeave:Connect(function()
+            if current ~= opt then
+                TweenService:Create(ob, Theme.TweenFast, { BackgroundColor3 = Theme.SurfaceAlt }):Play()
+            end
+        end)
+        ob.MouseButton1Click:Connect(function()
+            setValue(opt, true)
+            close()
+        end)
+    end
+
+    local totalH = 4 + #options * 28 + 4
+    setValue(current, false)
+
+    header.MouseButton1Click:Connect(function()
+        expanded = not expanded
+        if expanded then
+            list.Visible = true
+            TweenService:Create(list, Theme.Tween, { Size = UDim2.new(1, 0, 0, totalH) }):Play()
+            TweenService:Create(arrow, Theme.Tween, { Rotation = 180 }):Play()
+        else
+            close()
+        end
+    end)
+
+    return {
+        set = function(_, v) setValue(v, true) end,
+        get = function(_) return current end,
+    }
+end
+
+-- ---------- Label & Separator ----------
+function Lib.addLabel(parent, opts)
+    opts = opts or {}
+    local l = Instance.new("TextLabel")
+    l.Size                   = UDim2.new(1, 0, 0, 22)
+    l.BackgroundTransparency = 1
+    l.Text                   = opts.text or ""
+    l.TextColor3             = opts.color or Theme.TextDim
+    l.Font                   = opts.bold and Theme.FontBold or Theme.Font
+    l.TextSize               = opts.size or 12
+    l.TextXAlignment         = Enum.TextXAlignment.Left
+    l.Parent                 = parent
+    return l
+end
+
+function Lib.addSeparator(parent)
+    local f = Instance.new("Frame")
+    f.Size                   = UDim2.new(1, 0, 0, 1)
+    f.BackgroundColor3       = Theme.Border
+    f.BackgroundTransparency = 0.4
+    f.BorderSizePixel        = 0
+    f.Parent                 = parent
+    return f
+end
+
+-- ---------- Window ----------
+function Lib.createWindow(opts)
+    opts = opts or {}
+    local title = opts.title or "Window"
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name           = "AutoCombat_" .. tostring(math.random(1000, 9999))
+    screenGui.ResetOnSpawn   = false
+    screenGui.IgnoreGuiInset = true
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent         = getGuiParent()
+
+    local window = {
+        _maid      = Maid.new(),
+        _tabs      = {},
+        _activeTab = nil,
+        _minimized = false,
+        _hidden    = false,
+        _screenGui = screenGui,
+    }
+    GlobalMaid:Give(screenGui)
+
+    local blur = Instance.new("BlurEffect")
+    blur.Size = 16
+    blur.Parent = Lighting
+    window._maid:Give(blur)
+
+    local main = Instance.new("Frame")
+    main.Name                   = "Main"
+    main.Size                   = UDim2.fromOffset(620, 440)
+    main.Position               = UDim2.new(0.5, -310, 0.5, -220)
+    main.BackgroundColor3       = Theme.Base
+    main.BackgroundTransparency = 0.06
+    main.BorderSizePixel        = 0
+    main.Parent                 = screenGui
+    corner(main, 12)
+    stroke(main, Theme.Border, 1, 0.2)
+
+    local grad = Instance.new("UIGradient")
+    grad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(22, 32, 58)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(11, 17, 32)),
+    })
+    grad.Rotation = 135
+    grad.Parent   = main
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Name                   = "TitleBar"
+    titleBar.Size                   = UDim2.new(1, 0, 0, 44)
+    titleBar.BackgroundColor3       = Theme.Surface
+    titleBar.BackgroundTransparency = 0.25
+    titleBar.BorderSizePixel        = 0
+    titleBar.Parent                 = main
+
+    local tc = Instance.new("UICorner")
+    tc.CornerRadius = UDim.new(0, 12)
+    tc.Parent = titleBar
+
+    local titleBottom = Instance.new("Frame")
+    titleBottom.Size                   = UDim2.new(1, 0, 0, 12)
+    titleBottom.Position               = UDim2.new(0, 0, 1, -12)
+    titleBottom.BackgroundColor3       = Theme.Surface
+    titleBottom.BackgroundTransparency = 0.25
+    titleBottom.BorderSizePixel        = 0
+    titleBottom.Parent                 = titleBar
+
+    local accentDot = Instance.new("Frame")
+    accentDot.Size             = UDim2.fromOffset(8, 8)
+    accentDot.Position         = UDim2.new(0, 10, 0.5, -4)
+    accentDot.BackgroundColor3 = Theme.Accent
+    accentDot.BorderSizePixel  = 0
+    accentDot.Parent           = titleBar
+    corner(accentDot, 4)
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size                   = UDim2.new(1, -140, 1, 0)
+    titleLabel.Position               = UDim2.fromOffset(24, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text                   = title
+    titleLabel.TextColor3             = Theme.Text
+    titleLabel.Font                   = Theme.FontBold
+    titleLabel.TextSize               = 15
+    titleLabel.TextXAlignment         = Enum.TextXAlignment.Left
+    titleLabel.Parent                 = titleBar
+
+    local controls = Instance.new("Frame")
+    controls.Size                   = UDim2.fromOffset(70, 30)
+    controls.Position               = UDim2.new(1, -80, 0.5, -15)
+    controls.BackgroundTransparency = 1
+    controls.Parent                 = titleBar
+
+    local function makeCtl(txt, xOff, baseColor)
+        local b = Instance.new("TextButton")
+        b.Size             = UDim2.fromOffset(26, 26)
+        b.Position         = UDim2.fromOffset(xOff, 2)
+        b.BackgroundColor3 = baseColor
+        b.BorderSizePixel  = 0
+        b.Text             = txt
+        b.TextColor3       = Theme.Text
+        b.Font             = Enum.Font.GothamBold
+        b.TextSize         = 13
+        b.AutoButtonColor  = false
+        b.Parent           = controls
+        corner(b, 6)
+        b.MouseEnter:Connect(function()
+            TweenService:Create(b, Theme.TweenFast, { BackgroundColor3 = Theme.Accent }):Play()
+        end)
+        b.MouseLeave:Connect(function()
+            TweenService:Create(b, Theme.TweenFast, { BackgroundColor3 = baseColor }):Play()
+        end)
+        return b
+    end
+
+    local minimizeBtn = makeCtl("—", 0,  Theme.SurfaceAlt)
+    local closeBtn    = makeCtl("✕", 32, Theme.SurfaceAlt)
+
+    local sidebar = Instance.new("Frame")
+    sidebar.Name                   = "Sidebar"
+    sidebar.Size                   = UDim2.new(0, 156, 1, -44)
+    sidebar.Position               = UDim2.fromOffset(0, 44)
+    sidebar.BackgroundColor3       = Theme.Surface
+    sidebar.BackgroundTransparency = 0.5
+    sidebar.BorderSizePixel        = 0
+    sidebar.Parent                 = main
+
+    local sidePad = Instance.new("UIPadding")
+    sidePad.PaddingTop   = UDim.new(0, 10)
+    sidePad.PaddingLeft  = UDim.new(0, 8)
+    sidePad.PaddingRight = UDim.new(0, 8)
+    sidePad.Parent       = sidebar
+
+    local sideList = Instance.new("UIListLayout")
+    sideList.Padding   = UDim.new(0, 6)
+    sideList.SortOrder = Enum.SortOrder.LayoutOrder
+    sideList.Parent    = sidebar
+
+    local content = Instance.new("Frame")
+    content.Name                = "Content"
+    content.Size                = UDim2.new(1, -156, 1, -44)
+    content.Position            = UDim2.fromOffset(156, 44)
+    content.BackgroundTransparency = 1
+    content.ClipsDescendants    = true
+    content.Parent              = main
+
+    local contentPad = Instance.new("UIPadding")
+    contentPad.PaddingTop    = UDim.new(0, 14)
+    contentPad.PaddingLeft   = UDim.new(0, 16)
+    contentPad.PaddingRight  = UDim.new(0, 16)
+    contentPad.PaddingBottom = UDim.new(0, 14)
+    contentPad.Parent        = content
+
+    makeDraggable(main, titleBar, window._maid)
+
+    window._maid:Give(UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        if input.KeyCode == Enum.KeyCode.RightControl then
+            window._hidden = not window._hidden
+            main.Visible = not window._hidden
+        end
+    end))
+
+    minimizeBtn.MouseButton1Click:Connect(function()
+        window._minimized = not window._minimized
+        local target = window._minimized and UDim2.fromOffset(620, 44) or UDim2.fromOffset(620, 440)
+        TweenService:Create(main, Theme.Tween, { Size = target }):Play()
+        sidebar.Visible = not window._minimized
+        content.Visible = not window._minimized
+    end)
+
+    closeBtn.MouseButton1Click:Connect(function()
+        window:destroy()
+    end)
+
+    function window:addTab(name)
+        local btn = Instance.new("TextButton")
+        btn.Size                   = UDim2.new(1, 0, 0, 36)
+        btn.BackgroundColor3       = Theme.Base
+        btn.BackgroundTransparency = 0.6
+        btn.BorderSizePixel        = 0
+        btn.Text                   = "  " .. name
+        btn.TextColor3             = Theme.TextDim
+        btn.Font                   = Theme.Font
+        btn.TextSize               = 13
+        btn.TextXAlignment         = Enum.TextXAlignment.Left
+        btn.AutoButtonColor        = false
+        btn.Parent                 = sidebar
+        corner(btn, 8)
+
+        local indicator = Instance.new("Frame")
+        indicator.Size             = UDim2.fromOffset(3, 0)
+        indicator.Position         = UDim2.new(0, 0, 0.5, 0)
+        indicator.BackgroundColor3 = Theme.Accent
+        indicator.BorderSizePixel  = 0
+        indicator.Parent           = btn
+        corner(indicator, 2)
+
+        local page = Instance.new("ScrollingFrame")
+        page.Size                   = UDim2.new(1, 0, 1, 0)
+        page.BackgroundTransparency = 1
+        page.BorderSizePixel        = 0
+        page.ScrollBarThickness     = 4
+        page.ScrollBarImageColor3   = Theme.SurfaceAlt
+        page.CanvasSize             = UDim2.new(0, 0, 0, 0)
+        page.Visible                = false
+        page.Parent                 = content
+
+        local pageList = Instance.new("UIListLayout")
+        pageList.Padding   = UDim.new(0, 10)
+        pageList.SortOrder = Enum.SortOrder.LayoutOrder
+        pageList.Parent    = page
+
+        local pagePad = Instance.new("UIPadding")
+        pagePad.PaddingRight = UDim.new(0, 6)
+        pagePad.Parent       = page
+
+        local function setActive()
+            local prev = window._activeTab
+            if prev then
+                prev.page.Visible = false
+                TweenService:Create(prev.btn, Theme.Tween, {
+                    BackgroundTransparency = 0.6,
+                    TextColor3 = Theme.TextDim,
+                }):Play()
+                TweenService:Create(prev.indicator, Theme.Tween, {
+                    Size = UDim2.fromOffset(3, 0),
+                }):Play()
+            end
+            window._activeTab = { btn = btn, page = page, indicator = indicator }
+            page.Visible = true
+            TweenService:Create(btn, Theme.Tween, {
+                BackgroundTransparency = 0.15,
+                TextColor3 = Theme.Text,
+            }):Play()
+            TweenService:Create(indicator, Theme.Tween, {
+                Size = UDim2.fromOffset(3, 20),
+            }):Play()
+        end
+
+        btn.MouseButton1Click:Connect(setActive)
+        if not window._activeTab then setActive() end
+
+        local api = { _page = page }
+        function api:addButton(o)    return Lib.addButton(page, o)    end
+        function api:addToggle(o)    return Lib.addToggle(page, o)    end
+        function api:addSlider(o)    return Lib.addSlider(page, o)    end
+        function api:addDropdown(o)  return Lib.addDropdown(page, o)  end
+        function api:addLabel(o)     return Lib.addLabel(page, o)     end
+        function api:addSeparator()  return Lib.addSeparator(page)    end
+        return api
+    end
+
+    function window:toast(msg, kind) return Lib.toast(msg, kind) end
+
+    function window:destroy()
+        if window._destroyed then return end
+        window._destroyed = true
+        window._maid:Clean()
+        if screenGui then screenGui:Destroy() end
+    end
+
+    return window
+end
+
+-- ============================================================
+-- STATE
+-- ============================================================
+local State = {
+    AutoParry     = false,
+    ParryMode     = "Directional",
+    ParryRange    = 12,
+    ParryKey      = Enum.KeyCode.F,
+    ParryCooldown = 0.3,
+    LastParryTime = 0,
+
+    AutoDodge     = false,
+    DodgeMethod   = "Dash",
+    DodgeRange    = 15,
+    DodgeDelay    = 0.10,
+    DodgeDistance = 12,
+    DodgeCooldown = 0.50,
+    LastDodgeTime = 0,
+
+    PingCompensation  = 1.0,
+    VisualizerEnabled = true,
+
+    FPS         = 60,
+    ThreatCount = 0,
+}
+
+-- ============================================================
+-- UTIL: PING & ROOT
+-- ============================================================
+local function getPing()
+    local ok, ping = pcall(function()
+        return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() / 1000
+    end)
+    return ok and ping or 0.05
+end
+
+local function getRoot()
+    local char = LocalPlayer.Character
+    if not char then return nil, nil end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+    return root, char, hum
+end
+
+-- ============================================================
+-- THREAT SCANNER
+-- ============================================================
+local function findThreats(range)
+    local root, char = getRoot()
+    if not root then return {} end
+    local myPos = root.Position
+
+    local threats = {}
+    for _, part in ipairs(Workspace:GetDescendants()) do
+        if part:IsA("BasePart") and not part.Anchored and part ~= root then
+            if not (char and part:IsDescendantOf(char)) then
+                local vel = part.AssemblyLinearVelocity or part.Velocity
+                if vel.Magnitude > 10 then
+                    local toMe = myPos - part.Position
+                    local dist = toMe.Magnitude
+                    if dist > 0.5 and dist <= range then
+                        local dirToMe = toMe.Unit
+                        local velDir  = vel.Unit
+                        local dot     = dirToMe:Dot(velDir)
+                        if dot > 0.5 then
+                            local closing = vel.Magnitude * dot
+                            table.insert(threats, {
+                                part         = part,
+                                distance     = dist,
+                                velocity     = vel.Magnitude,
+                                closingSpeed = closing,
+                                dirToMe      = dirToMe,
+                                dot          = dot,
+                                eta          = dist / math.max(closing, 1),
+                            })
+                        end
+                    end
+                end
+            end
+        end
+    end
+    table.sort(threats, function(a, b) return a.eta < b.eta end)
+    return threats
+end
+
+-- ============================================================
+-- KINEMATIC SOLVER
+-- ============================================================
+local function dynamicThreshold(baseDist, velocity)
+    local ping = getPing()
+    return baseDist + (velocity * ping * State.PingCompensation)
+end
+
+local function computeDodgeVector(threat)
+    local dir = threat.dirToMe
+    local up  = Vector3.new(0, 1, 0)
+    local lateral = dir:Cross(up)
+    if lateral.Magnitude < 0.05 then
+        lateral = dir:Cross(Vector3.new(1, 0, 0))
+    end
+    lateral = lateral.Unit
+
+    local root = getRoot()
+    if root then
+        local v = root.AssemblyLinearVelocity or root.Velocity
+        if v.Magnitude > 1 and v:Dot(lateral) < 0 then
+            lateral = -lateral
+        elseif math.random() > 0.5 then
+            lateral = -lateral
+        end
+    end
+    return lateral
+end
+
+-- ============================================================
+-- ACTUATORS
+-- ============================================================
+local function triggerParry()
+    local now = tick()
+    if now - State.LastParryTime < State.ParryCooldown then return end
+    State.LastParryTime = now
+    pcall(function()
+        VirtualInputManager:SendKeyEvent(true,  State.ParryKey, false, game)
+        task.wait(0.03)
+        VirtualInputManager:SendKeyEvent(false, State.ParryKey, false, game)
+    end)
+end
+
+local function performDodge(method, lateralDir, distance)
+    local root = getRoot()
+    if not root then return end
+
+    if method == "Teleport" then
+        local newCF = CFrame.new(root.Position + lateralDir * distance) * (root.CFrame - root.CFrame.Position)
+        root.CFrame = newCF
+    elseif method == "Dash" then
+        local bv = Instance.new("BodyVelocity")
+        bv.Velocity = lateralDir * 90
+        bv.MaxForce = Vector3.new(1e5, 0, 1e5)
+        bv.Parent   = root
+        task.delay(0.15, function() if bv and bv.Parent then bv:Destroy() end end)
+    elseif method == "Velocity" then
+        local bv = Instance.new("BodyVelocity")
+        bv.Velocity = lateralDir * 60
+        bv.MaxForce = Vector3.new(math.huge, 0, math.huge)
+        bv.Parent   = root
+        task.delay(0.25, function() if bv and bv.Parent then bv:Destroy() end end)
+    end
+end
+
+local function triggerDodge(threat)
+    local now = tick()
+    if now - State.LastDodgeTime < State.DodgeCooldown then return end
+    State.LastDodgeTime = now
+    local lateral = computeDodgeVector(threat)
+    performDodge(State.DodgeMethod, lateral, State.DodgeDistance)
+end
+
+local function shouldParry(threat)
+    if State.ParryMode == "Instant" then return true end
+    if State.ParryMode == "Directional" then
+        local root = getRoot()
+        if not root then return false end
+        local look     = root.CFrame.LookVector
+        local toThreat = (threat.part.Position - root.Position)
+        if toThreat.Magnitude < 0.1 then return false end
+        return look:Dot(toThreat.Unit) > 0.3
+    end
+    if State.ParryMode == "Legit" then return true end
+    return false
+end
+
+-- ============================================================
+-- CORE HEARTBEAT
+-- ============================================================
+local function onHeartbeat(dt)
+    State.FPS = State.FPS * 0.9 + (1 / math.max(dt, 0.001)) * 0.1
+
+    if not State.AutoParry and not State.AutoDodge then
+        State.ThreatCount = 0
+        return
+    end
+
+    local root = getRoot()
+    if not root then
+        State.ThreatCount = 0
+        return
+    end
+
+    local scanRange = math.max(
+        State.AutoParry and State.ParryRange or 0,
+        State.AutoDodge and State.DodgeRange or 0
+    )
+    if scanRange <= 0 then return end
+
+    local threats = findThreats(scanRange)
+    State.ThreatCount = #threats
+
+    local first = threats[1]
+    if not first then return end
+
+    if State.AutoParry then
+        local threshold = dynamicThreshold(State.ParryRange, first.velocity)
+        if first.distance <= threshold and shouldParry(first) then
+            if State.ParryMode == "Legit" then
+                local delay = math.random() * 0.08 + 0.02
+                task.delay(delay, function()
+                    if State.AutoParry then triggerParry() end
+                end)
+            else
+                triggerParry()
+            end
+        end
+    end
+
+    if State.AutoDodge then
+        local threshold = dynamicThreshold(State.DodgeRange, first.velocity)
+        if first.distance <= threshold then
+            task.delay(State.DodgeDelay, function()
+                if State.AutoDodge then triggerDodge(first) end
+            end)
+        end
+    end
+end
+
+-- ============================================================
+-- VISUALIZER
+-- ============================================================
+local Visualizer = { _part = nil }
+
+function Visualizer:Create()
+    self:Destroy()
+    local root = getRoot()
+    if not root then return end
+
+    local part = Instance.new("Part")
+    part.Name         = "AutoCombat_Visualizer"
+    part.Shape        = Enum.PartType.Cylinder
+    part.Size         = Vector3.new(0.15, State.ParryRange * 2, State.ParryRange * 2)
+    part.Material     = Enum.Material.ForceField
+    part.Color        = Theme.Accent
+    part.Transparency = 0.6
+    part.CanCollide   = false
+    part.CanQuery     = false
+    part.CanTouch     = false
+    part.Anchored     = true
+    part.Parent       = Workspace
+    self._part = part
+    GlobalMaid:Give(part)
+end
+
+function Visualizer:Update()
+    if not State.VisualizerEnabled then
+        if self._part then self:Destroy() end
+        return
+    end
+    if not self._part or not self._part.Parent then
+        self:Create()
+        return
+    end
+    local root = getRoot()
+    if not root then return end
+
+    local pos = root.Position
+    self._part.CFrame = CFrame.new(pos) * CFrame.Angles(0, 0, math.rad(90))
+    self._part.Size   = Vector3.new(0.15, State.ParryRange * 2, State.ParryRange * 2)
+
+    local hasThreat   = (State.ThreatCount or 0) > 0
+    local targetColor = hasThreat and Theme.Danger or Theme.Accent
+    local targetTrans = hasThreat and 0.3 or 0.6
+    self._part.Color        = self._part.Color:Lerp(targetColor, 0.2)
+    self._part.Transparency = self._part.Transparency + (targetTrans - self._part.Transparency) * 0.2
+end
+
+function Visualizer:Destroy()
+    if self._part then
+        self._part:Destroy()
+        self._part = nil
+    end
+end
+
+-- ============================================================
+-- BUILD UI
+-- ============================================================
+local Window = Lib.createWindow({ title = "Auto Combat Suite" })
+
+local combatTab = Window:addTab("Combat")
+
+combatTab:addToggle({
+    text = "Auto Parry",
+    default = false,
+    callback = function(v)
+        State.AutoParry = v
+        Window:toast("Auto Parry " .. (v and "enabled" or "disabled"), v and "success" or "info")
+    end,
+})
+
+combatTab:addDropdown({
+    text = "Parry Mode",
+    options = { "Directional", "Instant", "Legit" },
+    default = "Directional",
+    callback = function(v)
+        State.ParryMode = v
+        Window:toast("Parry Mode → " .. v, "info")
+    end,
+})
+
+combatTab:addSlider({
+    text = "Parry Range",
+    min = 5, max = 50, default = 12, step = 1,
+    callback = function(v) State.ParryRange = v end,
+})
+
+combatTab:addSeparator()
+
+combatTab:addToggle({
+    text = "Auto Dodge",
+    default = false,
+    callback = function(v)
+        State.AutoDodge = v
+        Window:toast("Auto Dodge " .. (v and "enabled" or "disabled"), v and "success" or "info")
+    end,
+})
+
+combatTab:addDropdown({
+    text = "Dodge Method",
+    options = { "Dash", "Teleport", "Velocity" },
+    default = "Dash",
+    callback = function(v)
+        State.DodgeMethod = v
+        Window:toast("Dodge Method → " .. v, "info")
+    end,
+})
+
+combatTab:addSlider({
+    text = "Dodge Range",
+    min = 5, max = 50, default = 15, step = 1,
+    callback = function(v) State.DodgeRange = v end,
+})
+
+combatTab:addSlider({
+    text = "Dodge Distance",
+    min = 4, max = 30, default = 12, step = 1,
+    callback = function(v) State.DodgeDistance = v end,
+})
+
+local visTab = Window:addTab("Visualizers")
+
+visTab:addToggle({
+    text = "Range Visualizer",
+    default = true,
+    callback = function(v)
+        State.VisualizerEnabled = v
+        if v then Visualizer:Create() else Visualizer:Destroy() end
+        Window:toast("Visualizer " .. (v and "shown" or "hidden"), v and "success" or "info")
+    end,
+})
+
+visTab:addLabel({
+    text = "Silinder ForceField mengikuti karakter. Biru = aman, merah = ada ancaman.",
+    size = 11,
+})
+
+local cfgTab = Window:addTab("Configuration")
+
+cfgTab:addSlider({
+    text = "Ping Compensation",
+    min = 0.5, max = 3.0, default = 1.0, step = 0.1,
+    callback = function(v) State.PingCompensation = v end,
+})
+
+cfgTab:addSlider({
+    text = "Dodge Delay (s)",
+    min = 0, max = 0.5, default = 0.10, step = 0.05,
+    callback = function(v) State.DodgeDelay = v end,
+})
+
+cfgTab:addSlider({
+    text = "Parry Cooldown (s)",
+    min = 0.1, max = 1.5, default = 0.30, step = 0.05,
+    callback = function(v) State.ParryCooldown = v end,
+})
+
+cfgTab:addSlider({
+    text = "Dodge Cooldown (s)",
+    min = 0.2, max = 2.0, default = 0.50, step = 0.1,
+    callback = function(v) State.DodgeCooldown = v end,
+})
+
+cfgTab:addSeparator()
+cfgTab:addLabel({ text = "Parry Trigger Keybind", bold = true, size = 12 })
+
+local keyMap = {
+    F = Enum.KeyCode.F,
+    Q = Enum.KeyCode.Q,
+    E = Enum.KeyCode.E,
+    R = Enum.KeyCode.R,
+    Shift = Enum.KeyCode.LeftShift,
+    Ctrl = Enum.KeyCode.LeftControl,
+}
+cfgTab:addDropdown({
+    text = "Trigger Key",
+    options = { "F", "Q", "E", "R", "Shift", "Ctrl" },
+    default = "F",
+    callback = function(v)
+        State.ParryKey = keyMap[v] or Enum.KeyCode.F
+        Window:toast("Parry Key → " .. v, "info")
+    end,
+})
+
+cfgTab:addSeparator()
+
+local unloadBtn = cfgTab:addButton({
+    text = "⏻  Unload Script",
+    callback = function()
+        Visualizer:Destroy()
+        if Window then Window:destroy() end
+        GlobalMaid:Clean()
+    end,
+})
+unloadBtn.BackgroundColor3 = Theme.Danger
+stroke(unloadBtn, Theme.Danger, 1, 0.5)
+
+local perfTab = Window:addTab("Performance")
+
+local fpsLabel    = perfTab:addLabel({ text = "FPS: --",    bold = true, color = Theme.Text })
+local threatLabel = perfTab:addLabel({ text = "Threats: --" })
+local pingLabel   = perfTab:addLabel({ text = "Ping: -- ms" })
+local stateLabel  = perfTab:addLabel({ text = "Parry: OFF | Dodge: OFF" })
+
+-- ============================================================
+-- LOOPS
+-- ============================================================
+GlobalMaid:Give(RunService.Heartbeat:Connect(onHeartbeat))
+
+GlobalMaid:Give(RunService.RenderStepped:Connect(function()
+    Visualizer:Update()
+end))
+
+local frameCounter = 0
+GlobalMaid:Give(RunService.Heartbeat:Connect(function()
+    frameCounter = frameCounter + 1
+    if frameCounter % 6 ~= 0 then return end
+    if fpsLabel and fpsLabel.Parent then
+        fpsLabel.Text = string.format("FPS: %d", math.floor(State.FPS))
+        threatLabel.Text = string.format("Threats: %d", State.ThreatCount or 0)
+        pingLabel.Text = string.format("Ping: %.1f ms", getPing() * 1000)
+        stateLabel.Text = string.format("Parry: %s | Dodge: %s",
+            State.AutoParry and "ON" or "OFF",
+            State.AutoDodge and "ON" or "OFF")
+        stateLabel.TextColor3 = (State.AutoParry or State.AutoDodge) and Theme.Success or Theme.TextDim
+    end
+end))
+
+task.delay(1, function()
+    if State.VisualizerEnabled then Visualizer:Create() end
+    Window:toast("Loaded — RightCtrl toggles UI", "success")
+end)

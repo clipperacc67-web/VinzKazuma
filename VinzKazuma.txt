@@ -1,7 +1,7 @@
 --[[
     Vinz Kazuma Hub - Universal Mobile Edition (PART 1/5)
-    UI Style: Modern Card & Sidebar (Inspired by Codium/Rayfield Reference)
-    Includes: Core Services, ReplicatedStorage Detection, Character Helpers, FPS/Ping Overlay, & Deluxe Intro
+    UI Style: Modern Card & Sidebar
+    Includes: Core Services, Detection Decal, Character Helpers, FPS/Ping Overlay, & Deluxe Intro
 ]]
 
 local Players = game:GetService("Players")
@@ -29,7 +29,7 @@ pcall(function()
 end)
 
 ---
--- PALET TEMA CODIUM MODERN
+-- PALET TEMA MODERN
 ---
 local C_BG           = Color3.fromRGB(15, 16, 20)
 local C_SIDEBAR      = Color3.fromRGB(20, 21, 27)
@@ -216,7 +216,7 @@ task.spawn(function()
 end)
 
 ---
--- SILENT AIM HOOK, CODIUM WINDOW FRAME & UI ENGINE BUILDER (PART 2/5)
+-- SILENT AIM HOOK, WINDOW FRAME & UI ENGINE BUILDER (PART 2/5)
 ---
 local silentAimOn = false
 
@@ -287,7 +287,7 @@ pcall(function()
     end
 end)
 
--- Main Frame (Identik Codium UI)
+-- Main Frame
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
 mainFrame.Size = UDim2.fromOffset(560, 345)
@@ -304,7 +304,7 @@ local mainScale = Instance.new("UIScale")
 mainScale.Scale = 1
 mainScale.Parent = mainFrame
 
--- Topbar Header (Mirip Gambar Codium)
+-- Topbar Header
 local topBar = Instance.new("Frame")
 topBar.Size = UDim2.new(1, 0, 0, 38)
 topBar.BackgroundColor3 = C_SIDEBAR
@@ -409,7 +409,7 @@ userRole.TextSize = 10
 userRole.TextXAlignment = Enum.TextXAlignment.Left
 userRole.Parent = userProfile
 
--- Bottom Status Bar Footer (Persis Gambar: Version Pill & Clock)
+-- Bottom Status Bar Footer
 local bottomFooter = Instance.new("Frame")
 bottomFooter.Size = UDim2.new(1, -142, 0, 32)
 bottomFooter.Position = UDim2.new(0, 142, 1, -32)
@@ -421,7 +421,7 @@ local verPill = Instance.new("TextLabel")
 verPill.Size = UDim2.fromOffset(56, 20)
 verPill.Position = UDim2.new(0.5, -60, 0.5, -10)
 verPill.BackgroundColor3 = C_CYAN
-verPill.Text = "v6.0"
+verPill.Text = "v6.1"
 verPill.TextColor3 = Color3.fromRGB(10, 25, 20)
 verPill.Font = Enum.Font.GothamBold
 verPill.TextSize = 11
@@ -494,7 +494,6 @@ local function createTab(tabName, iconGlyph)
     tabBtn.Parent = tabContainer
     addCorner(tabBtn, 6)
 
-    -- Indikator Titik Putih di Samping Tab Aktif (Persis Gambar)
     local activeDot = Instance.new("Frame")
     activeDot.Size = UDim2.fromOffset(6, 6)
     activeDot.Position = UDim2.new(1, -12, 0.5, -3)
@@ -544,7 +543,6 @@ local function createTab(tabName, iconGlyph)
 
     local components = { Page = pageScroll }
 
-    -- Switch Kapsul Oval Codium (Persis Gambar Referensi)
     function components:AddToggle(title, default, callback)
         local card = Instance.new("Frame")
         card.Size = UDim2.new(1, 0, 0, 42)
@@ -697,7 +695,7 @@ local function createTab(tabName, iconGlyph)
 end
 
 ---
--- TAB COMBAT: FLING AURA, TOUCH FLING, TELEPORT ACTIVE PLAYERS LIST (PART 3/5)
+-- TAB COMBAT: WALK FLING, PLAYER LIST (TP / SPECTATE / FLING - 10s REFRESH), & COMBAT TOOLS (PART 3/5)
 ---
 addSidebarCategory("COMBAT")
 local tabPlayer = createTab("Player", "⚔️")
@@ -724,7 +722,7 @@ tabPlayer:AddToggle("Auto Aim (Via Peluru)", false, function(on)
     silentAimOn = on
 end)
 
--- 1. Walk Fling (Touch Fling Normal Bawaan)
+-- 1. Walk Fling (Touch Fling Normal)
 local hiddenfling = false
 local flingThread = nil
 
@@ -755,88 +753,293 @@ tabPlayer:AddToggle("Walk Fling (Touch Fling)", false, function(on)
     end
 end)
 
--- 2. FITUR BARU: FLING AURA (RADIUS ADJUSTABLE + VISUAL AURA ZONE)
-local flingAuraOn = false
-local flingAuraRadius = 15
-local flingAuraVisual = nil
-local flingAuraThread = nil
+-- 2. Targeted Fling Player Engine (Via Player List)
+local isTargetedFlinging = false
+local function flingTargetPlayer(targetPlayer)
+    if isTargetedFlinging then return end
+    if not targetPlayer or not targetPlayer.Character then return end
 
-local function updateAuraVisual()
-    if flingAuraVisual then
-        flingAuraVisual.Radius = flingAuraRadius
-    end
-end
+    local targetHrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local targetHum = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+    local myHrp = getRoot()
+    local myHum = getHum()
 
-local function flingAuraLoop()
+    if not targetHrp or not targetHum or targetHum.Health <= 0 or not myHrp or not myHum then return end
+
+    isTargetedFlinging = true
+    local savedCFrame = myHrp.CFrame
+    local oldWalkFling = hiddenfling
+    hiddenfling = false
+
+    myHum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    myHum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+
+    local bv = Instance.new("BodyVelocity")
+    bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+    bv.Velocity = Vector3.zero
+    bv.Parent = myHrp
+
+    local startTime = tick()
     local movel = 0.1
-    while flingAuraOn do
-        RunService.Heartbeat:Wait()
-        local c = lp.Character
-        local hrp = c and c:FindFirstChild("HumanoidRootPart")
-        local hum = c and c:FindFirstChildOfClass("Humanoid")
 
-        if hrp and hum and hum.Health > 0 then
-            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+    task.spawn(function()
+        while isTargetedFlinging and (tick() - startTime) < 0.85 do
+            RunService.Heartbeat:Wait()
+            if not targetPlayer.Parent or not targetPlayer.Character then break end
+            local tHrp = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local tHum = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if not tHrp or not tHum or tHum.Health <= 0 or not myHrp.Parent then break end
 
-            local myPos = hrp.Position
-            for _, p in ipairs(Players:GetPlayers()) do
-                if p ~= lp and p.Character then
-                    local eHrp = p.Character:FindFirstChild("HumanoidRootPart")
-                    local eHum = p.Character:FindFirstChildOfClass("Humanoid")
-                    if eHrp and eHum and eHum.Health > 0 then
-                        local dist = (eHrp.Position - myPos).Magnitude
-                        if dist <= flingAuraRadius then
-                            local oldVel = hrp.Velocity
-                            local oldCF = hrp.CFrame
-                            -- Desync pulse pada musuh di dalam radius
-                            hrp.CFrame = eHrp.CFrame
-                            hrp.Velocity = Vector3.new(0, 15000, 0) * 10
-                            RunService.RenderStepped:Wait()
-                            hrp.Velocity = oldVel
-                            hrp.CFrame = oldCF
-                            RunService.Stepped:Wait()
-                            hrp.Velocity = oldVel + Vector3.new(0, movel, 0)
-                            movel = -movel
-                        end
-                    end
-                end
+            local predOffset = tHrp.Velocity * 0.08
+            myHrp.CFrame = CFrame.new(tHrp.Position + predOffset)
+
+            myHrp.Velocity = Vector3.new(0, 10000, 0) + (tHrp.CFrame.LookVector * 10000)
+            myHrp.RotVelocity = Vector3.new(99999, 99999, 99999)
+
+            RunService.RenderStepped:Wait()
+            if myHrp.Parent then
+                myHrp.Velocity = Vector3.zero
+            end
+
+            RunService.Stepped:Wait()
+            if myHrp.Parent then
+                myHrp.Velocity = Vector3.new(0, movel, 0)
+                movel = -movel
             end
         end
+
+        if bv and bv.Parent then bv:Destroy() end
+        if myHrp and myHrp.Parent then
+            myHrp.Velocity = Vector3.zero
+            myHrp.RotVelocity = Vector3.zero
+            pcall(function()
+                myHrp.AssemblyLinearVelocity = Vector3.zero
+                myHrp.AssemblyAngularVelocity = Vector3.zero
+            end)
+            myHrp.CFrame = savedCFrame
+        end
+        if myHum and myHum.Parent then
+            myHum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+            myHum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+            myHum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
+
+        isTargetedFlinging = false
+        if oldWalkFling then
+            hiddenfling = true
+            flingThread = coroutine.create(touchFlingLoop)
+            coroutine.resume(flingThread)
+        end
+    end)
+end
+
+-- 3. Spectate Player Engine (Auto Follow Respawn)
+local currentSpectateTarget = nil
+local specStatusLabel = nil
+
+local function setSpectateTarget(targetPlayer)
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+
+    if targetPlayer and targetPlayer ~= lp and targetPlayer.Parent then
+        currentSpectateTarget = targetPlayer
+        local tHum = targetPlayer.Character and targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if tHum then
+            cam.CameraSubject = tHum
+        end
+        if specStatusLabel then
+            specStatusLabel.Text = "👁️ Spectating: " .. targetPlayer.DisplayName
+            specStatusLabel.TextColor3 = C_CYAN
+        end
+    else
+        currentSpectateTarget = nil
+        local myHum = getHum()
+        if myHum then cam.CameraSubject = myHum end
+        if specStatusLabel then
+            specStatusLabel.Text = "👁️ Spectating: Tidak Ada"
+            specStatusLabel.TextColor3 = C_MUTED
+        end
     end
 end
 
-tabPlayer:AddToggle("Fling Aura (Radius Fling)", false, function(on)
-    flingAuraOn = on
-    local hrp = getRoot()
-    if on then
-        if hrp and not flingAuraVisual then
-            flingAuraVisual = Instance.new("SelectionSphere")
-            flingAuraVisual.Name = "VK_FlingAura"
-            flingAuraVisual.Adornee = hrp
-            flingAuraVisual.Color3 = C_CYAN
-            flingAuraVisual.Transparency = 0.65
-            flingAuraVisual.Parent = hrp
-            updateAuraVisual()
-        end
-        flingAuraThread = coroutine.create(flingAuraLoop)
-        coroutine.resume(flingAuraThread)
-    else
-        if flingAuraVisual then
-            flingAuraVisual:Destroy()
-            flingAuraVisual = nil
-        end
-        local hum = getHum()
-        if hum then
-            hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-            hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+RunService.Heartbeat:Connect(function()
+    if currentSpectateTarget then
+        if not currentSpectateTarget.Parent then
+            setSpectateTarget(nil)
+        else
+            local cam = workspace.CurrentCamera
+            local tHum = currentSpectateTarget.Character and currentSpectateTarget.Character:FindFirstChildOfClass("Humanoid")
+            if cam and tHum and cam.CameraSubject ~= tHum then
+                cam.CameraSubject = tHum
+            end
         end
     end
 end)
 
-tabPlayer:AddStepper("Fling Aura Radius", 5, 50, 5, 15, function(v)
-    flingAuraRadius = v
-    updateAuraVisual()
+-- 4. ACTIVE PLAYERS LIST CARD (TP + SPECTATE + FLING PLAYER, AUTO REFRESH 10 DETIK)
+local listCard = Instance.new("Frame")
+listCard.Size = UDim2.new(1, 0, 0, 215)
+listCard.BackgroundColor3 = C_CARD
+listCard.Parent = tabPlayer.Page
+addCorner(listCard, 8)
+
+local listHeader = Instance.new("TextLabel")
+listHeader.Size = UDim2.new(1, -16, 0, 20)
+listHeader.Position = UDim2.fromOffset(10, 6)
+listHeader.BackgroundTransparency = 1
+listHeader.Text = "Active Players (Teleport / Spectate / Fling):"
+listHeader.TextColor3 = C_WHITE
+listHeader.Font = Enum.Font.GothamBold
+listHeader.TextSize = 11
+listHeader.TextXAlignment = Enum.TextXAlignment.Left
+listHeader.Parent = listCard
+
+-- Bar Status Spectate + Tombol Stop Spectate
+local specBar = Instance.new("Frame")
+specBar.Size = UDim2.new(1, -16, 0, 26)
+specBar.Position = UDim2.fromOffset(8, 28)
+specBar.BackgroundColor3 = C_CARD_INNER
+specBar.Parent = listCard
+addCorner(specBar, 6)
+
+specStatusLabel = Instance.new("TextLabel")
+specStatusLabel.Size = UDim2.new(1, -95, 1, 0)
+specStatusLabel.Position = UDim2.fromOffset(8, 0)
+specStatusLabel.BackgroundTransparency = 1
+specStatusLabel.Text = "👁️ Spectating: Tidak Ada"
+specStatusLabel.TextColor3 = C_MUTED
+specStatusLabel.Font = Enum.Font.GothamMedium
+specStatusLabel.TextSize = 10
+specStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+specStatusLabel.TextTruncate = Enum.TextTruncate.AtEnd
+specStatusLabel.Parent = specBar
+
+local stopSpecBtn = Instance.new("TextButton")
+stopSpecBtn.Size = UDim2.fromOffset(82, 20)
+stopSpecBtn.Position = UDim2.new(1, -86, 0.5, -10)
+stopSpecBtn.BackgroundColor3 = C_DANGER
+stopSpecBtn.Text = "Stop Spec"
+stopSpecBtn.TextColor3 = C_WHITE
+stopSpecBtn.Font = Enum.Font.GothamBold
+stopSpecBtn.TextSize = 10
+stopSpecBtn.Parent = specBar
+addCorner(stopSpecBtn, 5)
+stopSpecBtn.Activated:Connect(function()
+    setSpectateTarget(nil)
+end)
+
+local playerScroll = Instance.new("ScrollingFrame")
+playerScroll.Size = UDim2.new(1, -16, 1, -64)
+playerScroll.Position = UDim2.fromOffset(8, 58)
+playerScroll.BackgroundTransparency = 1
+playerScroll.BorderSizePixel = 0
+playerScroll.ScrollBarThickness = 2
+playerScroll.ScrollBarImageColor3 = C_ACCENT
+playerScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+playerScroll.Parent = listCard
+
+local pListLayout = Instance.new("UIListLayout")
+pListLayout.Padding = UDim.new(0, 4)
+pListLayout.Parent = playerScroll
+
+local function refreshActivePlayersList()
+    local savedCanvasPos = playerScroll.CanvasPosition
+    for _, child in ipairs(playerScroll:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp then
+            local row = Instance.new("Frame")
+            row.Size = UDim2.new(1, -4, 0, 34)
+            row.BackgroundColor3 = C_CARD_INNER
+            row.Parent = playerScroll
+            addCorner(row, 6)
+
+            local pThumb = Instance.new("ImageLabel")
+            pThumb.Size = UDim2.fromOffset(24, 24)
+            pThumb.Position = UDim2.new(0, 5, 0.5, -12)
+            pThumb.BackgroundTransparency = 1
+            pThumb.Image = Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+            pThumb.Parent = row
+            addCorner(pThumb, 12)
+
+            local pName = Instance.new("TextLabel")
+            pName.Size = UDim2.new(1, -182, 1, 0)
+            pName.Position = UDim2.fromOffset(34, 0)
+            pName.BackgroundTransparency = 1
+            pName.Text = p.DisplayName
+            pName.TextColor3 = C_WHITE
+            pName.Font = Enum.Font.GothamMedium
+            pName.TextSize = 10
+            pName.TextXAlignment = Enum.TextXAlignment.Left
+            pName.TextTruncate = Enum.TextTruncate.AtEnd
+            pName.Parent = row
+
+            -- Tombol TP
+            local tpBtn = Instance.new("TextButton")
+            tpBtn.Size = UDim2.fromOffset(38, 22)
+            tpBtn.Position = UDim2.new(1, -142, 0.5, -11)
+            tpBtn.BackgroundColor3 = C_ACCENT
+            tpBtn.Text = "TP"
+            tpBtn.TextColor3 = C_WHITE
+            tpBtn.Font = Enum.Font.GothamBold
+            tpBtn.TextSize = 10
+            tpBtn.Parent = row
+            addCorner(tpBtn, 5)
+            tpBtn.Activated:Connect(function()
+                if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                    local myRoot = getRoot()
+                    if myRoot then
+                        myRoot.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+                    end
+                end
+            end)
+
+            -- Tombol SPECTATE
+            local specBtn = Instance.new("TextButton")
+            specBtn.Size = UDim2.fromOffset(44, 22)
+            specBtn.Position = UDim2.new(1, -100, 0.5, -11)
+            specBtn.BackgroundColor3 = (currentSpectateTarget == p) and C_CYAN or Color3.fromRGB(45, 110, 180)
+            specBtn.Text = "SPEC"
+            specBtn.TextColor3 = (currentSpectateTarget == p) and Color3.fromRGB(10, 20, 20) or C_WHITE
+            specBtn.Font = Enum.Font.GothamBold
+            specBtn.TextSize = 10
+            specBtn.Parent = row
+            addCorner(specBtn, 5)
+            specBtn.Activated:Connect(function()
+                if currentSpectateTarget == p then
+                    setSpectateTarget(nil)
+                else
+                    setSpectateTarget(p)
+                end
+            end)
+
+            -- Tombol FLING
+            local flingBtn = Instance.new("TextButton")
+            flingBtn.Size = UDim2.fromOffset(48, 22)
+            flingBtn.Position = UDim2.new(1, -52, 0.5, -11)
+            flingBtn.BackgroundColor3 = C_DANGER
+            flingBtn.Text = "FLING"
+            flingBtn.TextColor3 = C_WHITE
+            flingBtn.Font = Enum.Font.GothamBold
+            flingBtn.TextSize = 10
+            flingBtn.Parent = row
+            addCorner(flingBtn, 5)
+            flingBtn.Activated:Connect(function()
+                flingTargetPlayer(p)
+            end)
+        end
+    end
+
+    playerScroll.CanvasPosition = savedCanvasPos
+end
+
+task.spawn(function()
+    while true do
+        pcall(refreshActivePlayersList)
+        task.wait(10)
+    end
 end)
 
 local immuneOn = false
@@ -963,117 +1166,6 @@ end)
 
 tabPlayer:AddStepper("Hitbox Size", 2, 60, 2, 15, function(v) hitboxSize = v end)
 tabPlayer:AddStepper("Hitbox Vis (0=Hilang)", 0, 10, 1, 0, function(v) hitboxAlpha = v end)
-
--- 3. FITUR BARU: TELEPORT VIA ACTIVE PLAYER LIST (AUTO REFRESH 2 DETIK)
-local tpCard = Instance.new("Frame")
-tpCard.Size = UDim2.new(1, 0, 0, 160)
-tpCard.BackgroundColor3 = C_CARD
-tpCard.Parent = tabPlayer.Page
-addCorner(tpCard, 8)
-
-local tpTitle = Instance.new("TextLabel")
-tpTitle.Size = UDim2.new(1, -16, 0, 24)
-tpTitle.Position = UDim2.fromOffset(8, 4)
-tpTitle.BackgroundTransparency = 1
-tpTitle.Text = "Active Players List (Klik untuk Teleport):"
-tpTitle.TextColor3 = C_WHITE
-tpTitle.Font = Enum.Font.GothamBold
-tpTitle.TextSize = 11
-tpTitle.TextXAlignment = Enum.TextXAlignment.Left
-tpTitle.Parent = tpCard
-
-local playerScroll = Instance.new("ScrollingFrame")
-playerScroll.Size = UDim2.new(1, -16, 1, -34)
-playerScroll.Position = UDim2.fromOffset(8, 28)
-playerScroll.BackgroundTransparency = 1
-playerScroll.BorderSizePixel = 0
-playerScroll.ScrollBarThickness = 2
-playerScroll.ScrollBarImageColor3 = C_ACCENT
-playerScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-playerScroll.Parent = tpCard
-
-local pListLayout = Instance.new("UIListLayout")
-pListLayout.Padding = UDim.new(0, 4)
-pListLayout.Parent = playerScroll
-
-local function refreshActivePlayersList()
-    for _, child in ipairs(playerScroll:GetChildren()) do
-        if child:IsA("Frame") then child:Destroy() end
-    end
-
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp then
-            local row = Instance.new("Frame")
-            row.Size = UDim2.new(1, -4, 0, 32)
-            row.BackgroundColor3 = C_CARD_INNER
-            row.Parent = playerScroll
-            addCorner(row, 6)
-
-            local pThumb = Instance.new("ImageLabel")
-            pThumb.Size = UDim2.fromOffset(24, 24)
-            pThumb.Position = UDim2.new(0, 4, 0.5, -12)
-            pThumb.BackgroundTransparency = 1
-            pThumb.Image = Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
-            pThumb.Parent = row
-            addCorner(pThumb, 12)
-
-            local pName = Instance.new("TextLabel")
-            pName.Size = UDim2.new(1, -95, 1, 0)
-            pName.Position = UDim2.fromOffset(34, 0)
-            pName.BackgroundTransparency = 1
-            pName.Text = string.format("%s (@%s)", p.DisplayName, p.Name)
-            pName.TextColor3 = C_WHITE
-            pName.Font = Enum.Font.GothamMedium
-            pName.TextSize = 10
-            pName.TextXAlignment = Enum.TextXAlignment.Left
-            pName.TextTruncate = Enum.TextTruncate.AtEnd
-            pName.Parent = row
-
-            local tpBtn = Instance.new("TextButton")
-            tpBtn.Size = UDim2.fromOffset(48, 22)
-            tpBtn.Position = UDim2.new(1, -54, 0.5, -11)
-            tpBtn.BackgroundColor3 = C_ACCENT
-            tpBtn.Text = "TP"
-            tpBtn.TextColor3 = C_WHITE
-            tpBtn.Font = Enum.Font.GothamBold
-            tpBtn.TextSize = 11
-            tpBtn.Parent = row
-            addCorner(tpBtn, 5)
-
-            tpBtn.Activated:Connect(function()
-                if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                    local myRoot = getRoot()
-                    if myRoot then
-                        myRoot.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
-                    end
-                end
-            end)
-        end
-    end
-end
-
-task.spawn(function()
-    while true do
-        refreshActivePlayersList()
-        task.wait(2)
-    end
-end)
-
-tabPlayer:AddInput("Cari / Teleport Manual Nickname...", "Teleport", function(query)
-    if query == "" then return end
-    query = query:lower()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp and (p.Name:lower():find(query) or p.DisplayName:lower():find(query)) then
-            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                local myRoot = getRoot()
-                if myRoot then
-                    myRoot.CFrame = p.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
-                    return
-                end
-            end
-        end
-    end
-end)
 
 local antiFlingConn
 tabPlayer:AddToggle("Anti Fling", false, function(on)
@@ -1918,4 +2010,3 @@ task.spawn(function()
 
     toggleMenu(true)
 end)
-
